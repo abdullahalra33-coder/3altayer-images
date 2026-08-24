@@ -996,24 +996,33 @@ function colRight(){ return state.cardSide === "right" ? W - M : M + COL; }
 function colLeft(){  return colRight() - COL; }
 
 /* ---------- background ---------- */
-// Snapchat's ghost is a faceless silhouette; drawn rather than shipped as an
-// asset so it stays crisp at any badge size.
-function drawGhost(cx, cy, w, color){
+// Official Snapchat glyph (24x24 path, from the simple-icons set) rendered
+// with Path2D, with the hand-built silhouette kept as a fallback for any
+// engine without Path2D-from-string.
+const SNAP_D = "M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z";
+let snapPath = null, snapPathTried = false;
+function getSnapPath(){
+  if (snapPathTried) return snapPath;
+  snapPathTried = true;
+  try { snapPath = new Path2D(SNAP_D); } catch (_) { snapPath = null; }
+  return snapPath;
+}
+
+function drawGhostFallback(cx, cy, w, color){
   const h = w * 1.18, r = w / 2;
   const left = cx - r, right = cx + r;
   const top = cy - h / 2, bot = cy + h / 2;
-  const shoulder = top + r;
-  const waist = bot - h * 0.26;
+  const shoulder = top + r, waist = bot - h * 0.26;
   ctx.beginPath();
   ctx.moveTo(left, waist);
   ctx.lineTo(left, shoulder);
   ctx.arc(cx, shoulder, r, Math.PI, 0);
   ctx.lineTo(right, waist);
-  ctx.lineTo(right + w * 0.11, waist + h * 0.14);          // right point
+  ctx.lineTo(right + w * 0.11, waist + h * 0.14);
   ctx.lineTo(right - w * 0.06, waist + h * 0.04);
   ctx.quadraticCurveTo(cx + w * 0.21, waist + h * 0.27, cx + w * 0.05, waist + h * 0.04);
   ctx.quadraticCurveTo(cx - w * 0.12, waist + h * 0.27, cx - w * 0.28, waist + h * 0.04);
-  ctx.lineTo(left - w * 0.11, waist + h * 0.14);           // left point
+  ctx.lineTo(left - w * 0.11, waist + h * 0.14);
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
@@ -1027,7 +1036,16 @@ function drawSnapBadge(cx, cy, size){
   roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.28);
   ctx.fill();
   shadowOff();
-  drawGhost(cx, cy - size * 0.01, size * 0.60, "#FFFFFF");
+  const path = getSnapPath();
+  if (path){
+    const g = size * 0.72, k = g / 24;
+    ctx.translate(cx - g / 2, cy - g / 2);
+    ctx.scale(k, k);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fill(path);
+  } else {
+    drawGhostFallback(cx, cy - size * 0.01, size * 0.60, "#FFFFFF");
+  }
   ctx.restore();
 }
 
@@ -1235,9 +1253,9 @@ function drawColumn(startY){
   // snapchat handle, sitting with the name it belongs to
   const snap = String(state.snap).trim();
   if (state.snapOn && snap){
-    const fs = 36;
+    const fs = 29;
     ctx.font = '600 ' + fs + 'px "Readex Pro", sans-serif';
-    ctx.letterSpacing = "1.2px";
+    ctx.letterSpacing = "1px";
     ctx.direction = "ltr"; ctx.textAlign = "right";
     shadowOn(14, 0.75, 3);
     ctx.fillStyle = "rgba(255,255,255,.92)";
@@ -1245,8 +1263,8 @@ function drawColumn(startY){
     const tw = ctx.measureText(snap).width;
     ctx.letterSpacing = "0px";
     shadowOff();
-    drawSnapBadge(right - tw - 18 - 25, y - fs * 0.34, 50);
-    y += 62;
+    drawSnapBadge(right - tw - 13 - 18, y - fs * 0.33, 36);
+    y += 52;
   }
 
   // hairline
