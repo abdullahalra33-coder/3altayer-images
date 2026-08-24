@@ -699,7 +699,10 @@ input[type="range"]::-moz-range-thumb{
           </div>
           <div class="field">
             <label for="feeling">الاحساس</label>
-            <textarea id="feeling" rows="2" placeholder="نابليون بونابرت"></textarea>
+            <textarea id="feeling" rows="2"
+              placeholder="واحد داخل العرس وهو مو معزوم"></textarea>
+            <p class="hint">اكتبه عامي ويضحك — شخصية أو موقف، مو وصف عطر. أقصر = أقوى.</p>
+            <div class="chips" id="feelIdeas" aria-label="أفكار للاحساس"></div>
           </div>
           <div class="field">
             <label for="note">ملاحظة (اختياري)</label>
@@ -716,9 +719,20 @@ input[type="range"]::-moz-range-thumb{
               <select id="dayOn"><option value="0">لا</option><option value="1">نعم</option></select>
             </div>
           </div>
+          <div class="row">
+            <div class="field">
+              <label for="snap">معرّف سناب (تحت اسم العطر)</label>
+              <input type="text" id="snap" dir="ltr" placeholder="ARS.300">
+            </div>
+            <div class="field">
+              <label for="snapOn">أظهر معرّف سناب</label>
+              <select id="snapOn"><option value="1">نعم</option><option value="0">لا</option></select>
+            </div>
+          </div>
           <div class="field">
             <label for="handle">التوقيع أسفل الصورة</label>
             <input type="text" id="handle" dir="ltr" value="3altayer.com">
+            <p class="hint">اتركه فاضي لو تبي معرّف سناب لحاله.</p>
           </div>
         </div>
       </details>
@@ -825,6 +839,7 @@ const state = {
   scores:Object.fromEntries(CRITERIA.map(c => [c.key, 8.5])),
   weights:Object.fromEntries(CRITERIA.map(c => [c.key, c.w])),
   scoreLabel:"الأداء", feeling:"", note:"", handle:"3altayer.com",
+  snap:"ARS.300", snapOn:true,
   dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:58
 };
@@ -981,6 +996,41 @@ function colRight(){ return state.cardSide === "right" ? W - M : M + COL; }
 function colLeft(){  return colRight() - COL; }
 
 /* ---------- background ---------- */
+// Snapchat's ghost is a faceless silhouette; drawn rather than shipped as an
+// asset so it stays crisp at any badge size.
+function drawGhost(cx, cy, w, color){
+  const h = w * 1.18, r = w / 2;
+  const left = cx - r, right = cx + r;
+  const top = cy - h / 2, bot = cy + h / 2;
+  const shoulder = top + r;
+  const waist = bot - h * 0.26;
+  ctx.beginPath();
+  ctx.moveTo(left, waist);
+  ctx.lineTo(left, shoulder);
+  ctx.arc(cx, shoulder, r, Math.PI, 0);
+  ctx.lineTo(right, waist);
+  ctx.lineTo(right + w * 0.11, waist + h * 0.14);          // right point
+  ctx.lineTo(right - w * 0.06, waist + h * 0.04);
+  ctx.quadraticCurveTo(cx + w * 0.21, waist + h * 0.27, cx + w * 0.05, waist + h * 0.04);
+  ctx.quadraticCurveTo(cx - w * 0.12, waist + h * 0.27, cx - w * 0.28, waist + h * 0.04);
+  ctx.lineTo(left - w * 0.11, waist + h * 0.14);           // left point
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// The app-icon lockup: yellow rounded square, white ghost.
+function drawSnapBadge(cx, cy, size){
+  ctx.save();
+  shadowOn(14, 0.5, 3);
+  ctx.fillStyle = "#FFFC00";
+  roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.28);
+  ctx.fill();
+  shadowOff();
+  drawGhost(cx, cy - size * 0.01, size * 0.60, "#FFFFFF");
+  ctx.restore();
+}
+
 function drawBackground(){
   if (photoImg){
     const k = Math.max(W / photoImg.width, H / photoImg.height) * state.zoom;
@@ -1182,6 +1232,23 @@ function drawColumn(startY){
     y += size * 0.40 + 34;
   }
 
+  // snapchat handle, sitting with the name it belongs to
+  const snap = String(state.snap).trim();
+  if (state.snapOn && snap){
+    const fs = 36;
+    ctx.font = '600 ' + fs + 'px "Readex Pro", sans-serif';
+    ctx.letterSpacing = "1.2px";
+    ctx.direction = "ltr"; ctx.textAlign = "right";
+    shadowOn(14, 0.75, 3);
+    ctx.fillStyle = "rgba(255,255,255,.92)";
+    ctx.fillText(snap, right, y);
+    const tw = ctx.measureText(snap).width;
+    ctx.letterSpacing = "0px";
+    shadowOff();
+    drawSnapBadge(right - tw - 18 - 25, y - fs * 0.34, 50);
+    y += 62;
+  }
+
   // hairline
   ctx.strokeStyle = "#E8B451"; ctx.lineWidth = 4; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(right, y); ctx.lineTo(right - 132, y); ctx.stroke();
@@ -1381,6 +1448,33 @@ function applyRecord(r){
         got.length ? "ok" : "err");
 }
 
+// Seeds in the same absurd-character register he already writes in —
+// something to react to, not a replacement for his own line.
+const FEEL_IDEAS = [
+  "واحد داخل العرس وهو مو معزوم",
+  "موظف بنك يوافق على قرضك وهو ما قراه",
+  "شايب ساعته أغلى من سيارته",
+  "ابن عم يجيب هدية أحلى من هدية المعرس",
+  "جار يغسل سيارته الساعة ٦ الفجر",
+  "مدير يعتذر بابتسامة وهو مأخّر كل شي",
+  "رجل أعمال بالنهار ودي جي بالليل",
+  "واحد يقول ما أحب العطور وهو مرشوش سبع رشات"
+];
+function buildFeelIdeas(){
+  const host = $("#feelIdeas");
+  host.textContent = "";
+  FEEL_IDEAS.forEach(t => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip";
+    b.textContent = t.length > 26 ? t.slice(0, 25) + "…" : t;
+    b.title = t;
+    b.addEventListener("click", () => {
+      state.feeling = t; $("#feeling").value = t; onChange();
+    });
+    host.appendChild(b);
+  });
+}
+
 function buildStoreSearch(){
   const inp = $("#storeSearch"), list = $("#storeList");
   const close = () => { list.hidden = true; };
@@ -1526,6 +1620,8 @@ function syncControls(){
    "scoreLabel","feeling","note","handle","dayNum",
    "zoom","pan","panX","scrim"].forEach(k => set(k, state[k]));
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
+  set("snap", state.snap);
+  const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
   set("longevity", state.longevity); set("sillage", state.sillage);
   set("panelMode", state.panelMode); set("cardSide", state.cardSide);
   set("topGap", String(state.topGap));
@@ -1754,8 +1850,9 @@ async function ensureFonts(){
 
 function wire(){
   ["brand","pname","perfumer","family","year","nTop","nHeart","nBase",
-   "mGender","mSeason","mTime","scoreLabel","feeling","note","handle"]
+   "mGender","mSeason","mTime","scoreLabel","feeling","note","handle","snap"]
     .forEach(k => bind(k, k));
+  bindSelect("snapOn", "snapOn", v => v === "1");
   bind("dayNum", "dayNum", v => Math.max(0, parseInt(v, 10) || 0));
   bindSelect("panelMode", "panelMode");
   bindSelect("cardSide", "cardSide");
@@ -1825,6 +1922,7 @@ function wire(){
   restore();
   wire();
   buildStoreSearch();
+  buildFeelIdeas();
   syncControls();
   renderArchive();
   renderPlan();
