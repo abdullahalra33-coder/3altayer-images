@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Turn the Salla product export into a compact perfume dataset.
 Mirrors the JS parser used against the live API, so both read the same markup."""
-import openpyxl, json, re, io
+import openpyxl, json, re, io, glob, os
 from lxml import html as LH
 
 AR = re.compile(r'[؀-ۿ][؀-ۿ\sـ’\']*')
@@ -130,13 +130,27 @@ def clean_name(full, brand_latin):
     if t and t == t.lower(): t = t.title()
     return t
 
-wb = openpyxl.load_workbook('products.xlsx', read_only=True, data_only=True)
-ws = wb['Salla Products Template Sheet']
+# Read every export in xl/ (Salla splits the catalogue across files) and keep
+# the richest row per product; the exports overlap heavily.
+FILES = sorted(glob.glob('xl/*.xlsx')) or ['products.xlsx']
+rows_in = {}
+for path in FILES:
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    ws = wb[wb.sheetnames[0]]
+    kept = 0
+    for row in ws.iter_rows(min_row=3, values_only=True):
+        if not row or not row[2]: continue
+        pid = str(row[0])
+        prev = rows_in.get(pid)
+        if prev is None or len(str(row[8] or "")) > len(str(prev[8] or "")):
+            rows_in[pid] = row
+        kept += 1
+    print(f"  {os.path.basename(path):14} {kept:5} rows")
+print(f"unique product ids across {len(FILES)} file(s): {len(rows_in)}\n")
 
 best = {}
 total = skipped = 0
-for row in ws.iter_rows(min_row=3, values_only=True):
-    if not row or not row[2]: continue
+for row in rows_in.values():
     total += 1
     name  = str(row[2]); desc = str(row[8] or ""); brand_raw = str(row[21] or "")
     price = row[7]
