@@ -617,7 +617,12 @@ input[type="range"]::-moz-range-thumb{
               <input type="range" id="sillage" min="0" max="5" step="0.1" value="0">
             </div>
           </div>
-          <p class="hint">هذي أرقام مجتمع Parfumo من صفحة المنتج — للعرض على البطاقة فقط، ما تدخل بحساب درجتك.</p>
+          <div class="field">
+            <label for="srcLabel">عنوان مصدر الأرقام</label>
+            <input type="text" id="srcLabel" maxlength="40">
+            <p class="hint">يظهر فوق الثلاثة على البطاقة. صفحات منتجاتك تنسب الثبات والفوحان لـ Parfumo وتقييم المجتمع لـ Fragrantica — عدّل النص لو تبيه أدق.</p>
+          </div>
+          <p class="hint">هذي أرقام المجتمع — للعرض فقط، ما تدخل بحساب درجتك. درجتك من خطوة ٤ وحدها.</p>
 
           <hr class="divider">
 
@@ -839,7 +844,7 @@ const state = {
   scores:Object.fromEntries(CRITERIA.map(c => [c.key, 8.5])),
   weights:Object.fromEntries(CRITERIA.map(c => [c.key, c.w])),
   scoreLabel:"الأداء", feeling:"", note:"", handle:"3altayer.com",
-  snap:"ARS.300", snapOn:true,
+  snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:58
 };
@@ -1112,18 +1117,13 @@ function layoutPanel(){
     });
   }
 
-  const bars = [];
-  if (wantBars){
-    if (state.longevity > 0) bars.push(["الثبات",  state.longevity]);
-    if (state.sillage   > 0) bars.push(["الفوحان", state.sillage]);
-    if (state.community > 0) bars.push(["فراقرانتيكا", state.community]);
-  }
-  if (bars.length){
+  if (wantBars && (state.community > 0 || state.longevity > 0 || state.sillage > 0)){
     if (ops.length){ h += 10; ops.push({ k:"rule", y:h }); h += 26; }
-    bars.forEach(([label, v]) => {
-      ops.push({ k:"bar", y:h, label, v, w:innerW });
-      h += 58;
-    });
+    const src = String(state.srcLabel).trim();
+    if (src){ ops.push({ k:"srcLabel", y:h, text:src }); h += 34; }
+    if (state.community > 0){ ops.push({ k:"headline", y:h, v:state.community }); h += 50; }
+    if (state.longevity > 0){ ops.push({ k:"bar", y:h, label:"الثبات",  v:state.longevity, w:innerW }); h += 58; }
+    if (state.sillage   > 0){ ops.push({ k:"bar", y:h, label:"الفوحان", v:state.sillage,   w:innerW }); h += 58; }
     h -= 8;
   }
 
@@ -1174,6 +1174,21 @@ function drawPanel(top, layout){
     } else if (op.k === "rule"){
       ctx.strokeStyle = "rgba(255,255,255,.14)"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x + layout.pad, y); ctx.lineTo(right, y); ctx.stroke();
+    } else if (op.k === "srcLabel"){
+      ctx.font = '400 25px Tajawal, sans-serif';
+      ctx.direction = "rtl"; ctx.textAlign = "right";
+      ctx.fillStyle = "rgba(255,255,255,.56)";
+      ctx.fillText(op.text, right, y + 22);
+    } else if (op.k === "headline"){
+      const hue = rampRGB(op.v / 5);
+      ctx.direction = "ltr"; ctx.textAlign = "right";
+      ctx.font = '400 26px Tajawal, sans-serif';
+      ctx.fillStyle = "rgba(255,255,255,.50)";
+      ctx.fillText("/ 5", right, y + 34);
+      const sw = ctx.measureText("/ 5").width + 10;
+      ctx.font = '500 44px Tajawal, sans-serif';
+      ctx.fillStyle = rgbStr(hue);
+      ctx.fillText(op.v.toFixed(1), right - sw, y + 34);
     } else if (op.k === "bar"){
       ctx.font = '400 30px Tajawal, sans-serif';
       ctx.direction = "rtl"; ctx.textAlign = "right";
@@ -1457,7 +1472,7 @@ function applyRecord(r){
   if (r.t || r.m || r.z) got.push("النوتات");
   if (r.l) got.push("الثبات");
   if (r.p) got.push("الفوحان");
-  if (r.c) got.push("فراقرانتيكا");
+  if (r.c) got.push("فراغرانتيكا");
   if (r.e) got.push("الموسم");
   if (r.u) got.push("المُعطِّر");
   toast(got.length ? "انسحب: " + got.join(" · ") : "ما فيه تفاصيل لهذا العطر — عبّي يدوي",
@@ -1636,7 +1651,7 @@ function syncControls(){
    "scoreLabel","feeling","note","handle","dayNum",
    "zoom","pan","panX","scrim"].forEach(k => set(k, state[k]));
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
-  set("snap", state.snap);
+  set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
   set("longevity", state.longevity); set("sillage", state.sillage);
   set("panelMode", state.panelMode); set("cardSide", state.cardSide);
@@ -1866,7 +1881,7 @@ async function ensureFonts(){
 
 function wire(){
   ["brand","pname","perfumer","family","year","nTop","nHeart","nBase",
-   "mGender","mSeason","mTime","scoreLabel","feeling","note","handle","snap"]
+   "mGender","mSeason","mTime","scoreLabel","feeling","note","handle","snap","srcLabel"]
     .forEach(k => bind(k, k));
   bindSelect("snapOn", "snapOn", v => v === "1");
   bind("dayNum", "dayNum", v => Math.max(0, parseInt(v, 10) || 0));
@@ -1949,7 +1964,7 @@ function wire(){
   render(showGuides);
   $("#catHint").textContent =
     toAr(PERFUMES.length) + " عطر من متجرك، فيها الهرم العطري والثبات والفوحان وتقييم "
-    + "فراقرانتيكا والموسم والمُعطِّر. اختر واحد ويتعبّى كل شي — بدون إنترنت.";
+    + "فراغرانتيكا والموسم والمُعطِّر. اختر واحد ويتعبّى كل شي — بدون إنترنت.";
 })();
 
 })();
