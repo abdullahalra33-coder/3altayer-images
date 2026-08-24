@@ -906,6 +906,28 @@ function loadImageFile(file, maxEdge, q){
 const cv  = $("#cv");
 const ctx = cv.getContext("2d");
 
+// Weak to strong, in the same orange-yellow-green family the product pages
+// already use for these two numbers.
+const RAMP = [
+  [0.00, [206,  86,  62]],
+  [0.40, [230, 167,  46]],
+  [0.58, [214, 196,  63]],
+  [0.76, [150, 200,  98]],
+  [1.00, [ 56, 166,  84]]
+];
+function rampRGB(t){
+  t = clamp(t, 0, 1);
+  for (let i = 1; i < RAMP.length; i++){
+    if (t <= RAMP[i][0]){
+      const a = RAMP[i - 1], b = RAMP[i];
+      const k = (t - a[0]) / ((b[0] - a[0]) || 1);
+      return a[1].map((c, j) => Math.round(c + (b[1][j] - c) * k));
+    }
+  }
+  return RAMP[RAMP.length - 1][1].slice();
+}
+const rgbStr = c => "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+
 function roundRect(x, y, w, h, r){
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -1091,16 +1113,18 @@ function drawPanel(top, layout){
       ctx.direction = "rtl"; ctx.textAlign = "right";
       ctx.fillStyle = "rgba(255,255,255,.72)";
       ctx.fillText(op.label, right, y + 24);
+      const hue = rampRGB(op.v / 5);
       ctx.font = '500 29px Tajawal, sans-serif';
       ctx.direction = "ltr"; ctx.textAlign = "left";
-      ctx.fillStyle = "#FFFFFF";
+      ctx.fillStyle = rgbStr(hue);
       ctx.fillText(op.v.toFixed(1) + " / 5", x + layout.pad, y + 24);
-      const by = y + 38, bh = 8;
-      ctx.fillStyle = "rgba(255,255,255,.20)";
+      const by = y + 38, bh = 9;
+      ctx.fillStyle = "rgba(255,255,255,.18)";
       roundRect(x + layout.pad, by, op.w, bh, bh / 2); ctx.fill();
       const fw = Math.max(bh, op.w * clamp(op.v / 5, 0, 1));
       const g = ctx.createLinearGradient(right - fw, 0, right, 0);
-      g.addColorStop(0, "#E8B451"); g.addColorStop(1, "#F0D08A");
+      g.addColorStop(0, rgbStr(hue.map(c => Math.round(c * 0.74))));
+      g.addColorStop(1, rgbStr(hue));
       ctx.fillStyle = g;
       roundRect(right - fw, by, fw, bh, bh / 2); ctx.fill();
     } else if (op.k === "meta"){
@@ -1513,8 +1537,11 @@ function updateRangeLabels(){
   $("#panVal").textContent   = toAr(Math.round(state.pan)) + "٪";
   $("#panXVal").textContent  = toAr(Math.round(state.panX)) + "٪";
   $("#scrimVal").textContent = toAr(Math.round(state.scrim)) + "٪";
-  $("#longVal").textContent  = Number(state.longevity).toFixed(1);
-  $("#silVal").textContent   = Number(state.sillage).toFixed(1);
+  const lv = $("#longVal"), sv = $("#silVal");
+  lv.textContent = Number(state.longevity).toFixed(1);
+  sv.textContent = Number(state.sillage).toFixed(1);
+  lv.style.color = state.longevity > 0 ? rgbStr(rampRGB(state.longevity / 5)) : "";
+  sv.style.color = state.sillage   > 0 ? rgbStr(rampRGB(state.sillage / 5))   : "";
 }
 
 /* ---------- archive & queue ---------- */
