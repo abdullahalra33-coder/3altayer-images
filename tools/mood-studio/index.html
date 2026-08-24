@@ -380,6 +380,30 @@ input[type="range"]::-moz-range-thumb{
 .empty{ font-size:12.5px; color:var(--ink3); font-weight:300; text-align:center; padding:var(--sp5) 0; }
 
 .divider{ height:1px; background:var(--line-soft); border:0; margin:0; }
+
+/* already-rated warning */
+.dup{
+  display:flex; gap:8px; align-items:baseline;
+  font-size:12.5px; line-height:1.5;
+  padding:9px 12px; border-radius:var(--r-sm);
+  background:var(--danger-soft); color:var(--danger);
+  border:1px solid color-mix(in srgb, var(--danger) 32%, transparent);
+}
+.dup[hidden]{ display:none; }
+.dup b{ font-weight:600; font-variant-numeric:tabular-nums; direction:ltr; }
+
+/* publishing queue */
+.plan-idx{
+  flex:none; width:24px; height:24px; border-radius:7px;
+  display:grid; place-items:center;
+  font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums;
+  background:var(--panel2); color:var(--ink3); border:1px solid var(--line);
+}
+.arch-row.is-next .plan-idx{
+  background:var(--amber); color:var(--amber-ink); border-color:var(--amber);
+}
+.arch-row.is-next{ border-color:var(--amber); }
+.opt-done{ color:var(--sage); font-size:11px; margin-inline-start:6px; }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 
 @media (prefers-reduced-motion: reduce){
@@ -472,6 +496,16 @@ input[type="range"]::-moz-range-thumb{
           <svg class="chev" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </summary>
         <div class="card-body">
+          <div class="field">
+            <label for="catSearch">من كتالوجك</label>
+            <div class="accord-search">
+              <input type="text" id="catSearch" autocomplete="off" spellcheck="false"
+                     placeholder="اكتب ٣ حروف — sauvage أو مونتال أو mancera">
+              <div class="accord-list" id="catList" hidden></div>
+            </div>
+            <p class="hint" id="catHint">٣٦٧ عطر من صور متجرك. اختر واحد ويتعبّى البراند والاسم — ويقول لك إذا سبق قيّمته.</p>
+          </div>
+          <div class="dup" id="dupWarn" hidden></div>
           <div class="row">
             <div class="field">
               <label for="brand">البراند</label>
@@ -643,6 +677,19 @@ input[type="range"]::-moz-range-thumb{
           </div>
           <div class="row">
             <div class="field">
+              <label for="dayNum">رقم اليوم</label>
+              <input type="number" id="dayNum" min="1" step="1" dir="ltr">
+            </div>
+            <div class="field">
+              <label for="dayOn">أظهر «اليوم ...» على الصورة</label>
+              <select id="dayOn">
+                <option value="0">لا</option>
+                <option value="1">نعم</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
               <label for="handle">التوقيع أسفل الصورة</label>
               <input type="text" id="handle" dir="ltr" placeholder="3altayer.com" value="3altayer.com">
             </div>
@@ -658,10 +705,28 @@ input[type="range"]::-moz-range-thumb{
         </div>
       </details>
 
-      <!-- 6 · ARCHIVE -->
+      <!-- 6 · PUBLISHING QUEUE -->
       <details class="card">
         <summary>
           <span class="step">٦</span>
+          خطة النشر
+          <span class="summary-note" id="planNote">القائمة فاضية</span>
+          <svg class="chev" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <div class="card-body">
+          <p class="hint">رتّب عطور الأيام الجاية مرة وحدة، وكل يوم اضغط «جهّزه» وصوّر. الأداة تختار من كتالوجك عطور ما قيّمتها من قبل، وتنوّع البراندات.</p>
+          <div class="stage-actions">
+            <button class="btn" type="button" id="planFill">＋ املأ ٧ أيام</button>
+            <button class="btn btn-ghost" type="button" id="planClear">فضّي القائمة</button>
+          </div>
+          <div class="arch-list" id="planList"></div>
+        </div>
+      </details>
+
+      <!-- 7 · ARCHIVE -->
+      <details class="card">
+        <summary>
+          <span class="step">٧</span>
           الأرشيف
           <span class="summary-note" id="archNote">٠ عطر</span>
           <svg class="chev" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -729,6 +794,9 @@ const ACCORDS = [
   ["Rose Oud","ورد وعود","#7A3038"],    ["Incense","بخور","#8C7A66"]
 ];
 
+// Catalogue built from the repo's own newprod/ product images.
+const CATALOG = [{"b": "Amouage", "n": "Beach Hut"}, {"b": "Amouage", "n": "Blossom Love"}, {"b": "Amouage", "n": "Jubilation 25 Woman"}, {"b": "Amouage", "n": "Jubilation XXV"}, {"b": "Amouage", "n": "Reflection for Woman"}, {"b": "Armani", "n": "Acqua di Gio Profondo"}, {"b": "Armani", "n": "Acqua di Gioia for Woman"}, {"b": "Armani", "n": "Code Absolu pour Femme"}, {"b": "Armani", "n": "Eau d'Armes"}, {"b": "Armani", "n": "Eau de Nuit"}, {"b": "Armani", "n": "Rouge Malachi Te"}, {"b": "Armani", "n": "Si Passione"}, {"b": "Armani", "n": "Si Rose Signature"}, {"b": "Armani", "n": "You Intensely"}, {"b": "Atelier des Ors", "n": "Musc Immortel"}, {"b": "Bentley", "n": "Absolute"}, {"b": "Bentley", "n": "Azure"}, {"b": "Bentley", "n": "Infinite Intense"}, {"b": "Bentley", "n": "Infinite Rush White Edition"}, {"b": "Bentley", "n": "Intense"}, {"b": "Bentley", "n": "Momentum"}, {"b": "Bentley", "n": "Momentum Unlimited"}, {"b": "Boucheron", "n": "Jaipur Bouquet"}, {"b": "Boucheron", "n": "Jaipur Bracelet"}, {"b": "Boucheron", "n": "Jaipur Homme"}, {"b": "Boucheron", "n": "Patchouli d'Angkor"}, {"b": "Boucheron", "n": "Pour Homme"}, {"b": "Boucheron", "n": "Quatre"}, {"b": "Boucheron", "n": "Quatre en Rouge"}, {"b": "Burberry", "n": "Brit"}, {"b": "Burberry", "n": "Brit Sheer"}, {"b": "Burberry", "n": "Her"}, {"b": "Burberry", "n": "Her Intense"}, {"b": "Burberry", "n": "London"}, {"b": "Burberry", "n": "Mr Burberry"}, {"b": "Burberry", "n": "Mr Burberry Indigo"}, {"b": "Burberry", "n": "My Burberry"}, {"b": "Burberry", "n": "My Burberry Black"}, {"b": "Burberry", "n": "My Burberry Blush"}, {"b": "Burberry", "n": "The Beat"}, {"b": "Burberry", "n": "Touch"}, {"b": "Bvlgari", "n": "Aqva Divina"}, {"b": "Bvlgari", "n": "Omnia Amethyste"}, {"b": "Bvlgari", "n": "Omnia Coral"}, {"b": "Bvlgari", "n": "Rose Goldea"}, {"b": "Bvlgari", "n": "Selima"}, {"b": "Bvlgari", "n": "Splendida Magnolia Sensuel"}, {"b": "Carolina Herrera", "n": "212"}, {"b": "Carolina Herrera", "n": "212 VIP"}, {"b": "Carolina Herrera", "n": "212 VIP Black"}, {"b": "Carolina Herrera", "n": "212 VIP Party Fever"}, {"b": "Carolina Herrera", "n": "212 VIP Rose"}, {"b": "Carolina Herrera", "n": "Bad Boy"}, {"b": "Carolina Herrera", "n": "CH"}, {"b": "Carolina Herrera", "n": "CH L'Eau"}, {"b": "Carolina Herrera", "n": "CH Limited Edition"}, {"b": "Carolina Herrera", "n": "CH Privee"}, {"b": "Carolina Herrera", "n": "CH Sublime Eau"}, {"b": "Carolina Herrera", "n": "Chic"}, {"b": "Carolina Herrera", "n": "Good Girl"}, {"b": "Carolina Herrera", "n": "Good Girl Dot Drama"}, {"b": "Carolina Herrera", "n": "Herrera"}, {"b": "Carolina Herrera", "n": "Nyc"}, {"b": "Carolina Herrera", "n": "Sexy"}, {"b": "Cartier", "n": "Baiser Vole"}, {"b": "Cartier", "n": "Declaration"}, {"b": "Cartier", "n": "La Panthere Noir Absolu"}, {"b": "Cartier", "n": "Santos"}, {"b": "Chanel", "n": "Allure Homme Sport Extreme"}, {"b": "Chanel", "n": "Allure Sensuelle"}, {"b": "Chanel", "n": "Chance"}, {"b": "Chanel", "n": "Chance Eau Tendre"}, {"b": "Chanel", "n": "Chance Vive"}, {"b": "Chanel", "n": "Coco Mademoiselle"}, {"b": "Chanel", "n": "Gabrielle"}, {"b": "Chanel", "n": "No 22"}, {"b": "Chanel", "n": "No 5"}, {"b": "Chloe", "n": "Lovestory"}, {"b": "Chloe", "n": "Nomade Absolu de"}, {"b": "Coach", "n": "New York"}, {"b": "Coach", "n": "New York Blue"}, {"b": "Coach", "n": "New York Coach Dreams"}, {"b": "Coach", "n": "New York Floral"}, {"b": "Coach", "n": "New York Floral Blush"}, {"b": "Coach", "n": "New York Platinum"}, {"b": "Davidoff", "n": "Adventure"}, {"b": "Davidoff", "n": "Champion"}, {"b": "Davidoff", "n": "Cool Water"}, {"b": "Davidoff", "n": "Cool Water Sea Rose"}, {"b": "Davidoff", "n": "Cool Water Sea Rose Pacific Summer"}, {"b": "Davidoff", "n": "Hot Water"}, {"b": "Davidoff", "n": "Zino"}, {"b": "Dior", "n": "Absolutely Blooming"}, {"b": "Dior", "n": "Dolce Vita"}, {"b": "Dior", "n": "Dune"}, {"b": "Dior", "n": "Fahrenheit"}, {"b": "Dior", "n": "Forever Ever"}, {"b": "Dior", "n": "Higher Energy"}, {"b": "Dior", "n": "Hypnotic Poison"}, {"b": "Dior", "n": "Jadore"}, {"b": "Dior", "n": "Jadore Injoy"}, {"b": "Dior", "n": "Joy Intense"}, {"b": "Dior", "n": "Poison Girl"}, {"b": "Dior", "n": "Pure Poison"}, {"b": "Dior", "n": "Sauvage"}, {"b": "Dolce & Gabbana", "n": "Dolce Peony"}, {"b": "Dolce & Gabbana", "n": "Dolce Shine"}, {"b": "Dolce & Gabbana", "n": "In Te So"}, {"b": "Dolce & Gabbana", "n": "K"}, {"b": "Dolce & Gabbana", "n": "L'Imperatrice 3"}, {"b": "Dolce & Gabbana", "n": "Light Blue Eau Intense"}, {"b": "Dolce & Gabbana", "n": "Light Blue Pour Homme"}, {"b": "Dolce & Gabbana", "n": "Pour Homme"}, {"b": "Dolce & Gabbana", "n": "The Only One"}, {"b": "Dolce & Gabbana", "n": "The Only One 2"}, {"b": "Dunhill", "n": "Century"}, {"b": "Dunhill", "n": "Icon Racing"}, {"b": "Elie Saab", "n": "Essentiel"}, {"b": "Elie Saab", "n": "Girl of Now Forever"}, {"b": "Elie Saab", "n": "Girl of Now Shine"}, {"b": "Elie Saab", "n": "In White"}, {"b": "Elie Saab", "n": "Intense"}, {"b": "Elie Saab", "n": "Nuit Noor"}, {"b": "Elie Saab", "n": "Rose Couture"}, {"b": "Elie Saab", "n": "Royal"}, {"b": "Emporio Armani", "n": "Because Its You"}, {"b": "Emporio Armani", "n": "In Love With You"}, {"b": "Emporio Armani", "n": "In Love With You Freeze"}, {"b": "Emporio Armani", "n": "Stronger With You"}, {"b": "Givenchy", "n": "Amarige"}, {"b": "Givenchy", "n": "Ange Ou Demon"}, {"b": "Givenchy", "n": "Dahlia Divin"}, {"b": "Givenchy", "n": "Dahlia Divin Le Nectar"}, {"b": "Givenchy", "n": "Dahlia Divin Le Nectar Intense"}, {"b": "Givenchy", "n": "Gentleman"}, {"b": "Givenchy", "n": "Gentleman Boisee"}, {"b": "Givenchy", "n": "Gentleman White"}, {"b": "Givenchy", "n": "Hot Couture"}, {"b": "Givenchy", "n": "Insense Ultramarine"}, {"b": "Givenchy", "n": "Linterdit Intense"}, {"b": "Givenchy", "n": "Live Irresistible"}, {"b": "Givenchy", "n": "Organza"}, {"b": "Givenchy", "n": "Pi"}, {"b": "Givenchy", "n": "Pour Homme"}, {"b": "Givenchy", "n": "Very Irresistible"}, {"b": "Givenchy", "n": "Xeryus Rouge"}, {"b": "Gucci", "n": "Bamboo"}, {"b": "Gucci", "n": "Bloom"}, {"b": "Gucci", "n": "Bloom Ambrosia Di Fiori Intense"}, {"b": "Gucci", "n": "Bloom Nettare Di Fiori"}, {"b": "Gucci", "n": "Envy Me"}, {"b": "Gucci", "n": "Guilty Absolute Pour Femme"}, {"b": "Gucci", "n": "Guilty Black Pour Homme"}, {"b": "Gucci", "n": "Guilty Pour Femme"}, {"b": "Gucci", "n": "Memoire dune Odeur"}, {"b": "Gucci", "n": "Rush"}, {"b": "Guerlain", "n": "La Petite Robe Noire"}, {"b": "Guerlain", "n": "La Petite Robe Noire Black Perfecto"}, {"b": "Guerlain", "n": "Mon Guerlain Bloom of Rose"}, {"b": "Guerlain", "n": "Mon Guerlain Intense"}, {"b": "Hermes", "n": "Elixir des Merveilles"}, {"b": "Hermes", "n": "Jour dhermes"}, {"b": "Hermes", "n": "Jour dhermes Absolu"}, {"b": "Hermes", "n": "Kelly Caleche"}, {"b": "Hermes", "n": "Terre dhermes"}, {"b": "Hermes", "n": "Twilly d'Hermes Eau Poivree"}, {"b": "Hugo Boss", "n": "Bottled Unlimited"}, {"b": "Hugo Boss", "n": "Dark Blue"}, {"b": "Hugo Boss", "n": "Deep Red"}, {"b": "Hugo Boss", "n": "Just Different"}, {"b": "Hugo Boss", "n": "No 1"}, {"b": "Hugo Boss", "n": "Orange"}, {"b": "Hugo Boss", "n": "Xx"}, {"b": "Hugo Boss", "n": "Xy"}, {"b": "Jean Paul Gaultier", "n": "Classique"}, {"b": "Jean Paul Gaultier", "n": "Le Beau"}, {"b": "Jean Paul Gaultier", "n": "Scandal"}, {"b": "Jean Paul Gaultier", "n": "So Scandal"}, {"b": "Lalique", "n": "Amethyst Eclat"}, {"b": "Lalique", "n": "Amethyst Exquise"}, {"b": "Lalique", "n": "Azalee"}, {"b": "Lalique", "n": "For Woman"}, {"b": "Lalique", "n": "L Amour"}, {"b": "Lalique", "n": "Living"}, {"b": "Lalique", "n": "Pour Homme Lion"}, {"b": "Lalique", "n": "Reve Dinfini"}, {"b": "Lalique", "n": "Satine"}, {"b": "Lalique", "n": "White Pour Homme"}, {"b": "Lancome", "n": "Hypnose"}, {"b": "Lancome", "n": "Idole"}, {"b": "Lancome", "n": "Idole Lintense Intense"}, {"b": "Lancome", "n": "Jasmins Marzipane"}, {"b": "Lancome", "n": "L'Autre Oud"}, {"b": "Lancome", "n": "La Nuit Tresor"}, {"b": "Lancome", "n": "La Nuit Tresor a la Folie"}, {"b": "Lancome", "n": "La Vie Est Belle"}, {"b": "Lancome", "n": "Magie Noire"}, {"b": "Lancome", "n": "Miracle"}, {"b": "Lancome", "n": "O Dazur"}, {"b": "Lancome", "n": "Oud Bouquet"}, {"b": "Lancome", "n": "Parfait de Roses"}, {"b": "Lancome", "n": "Roses Berberanza"}, {"b": "Lancome", "n": "Tresor in Love"}, {"b": "Mancera", "n": "Aoud Cafe"}, {"b": "Mancera", "n": "Aoud Orchid"}, {"b": "Mancera", "n": "Aoud S"}, {"b": "Mancera", "n": "Aoud Vanille"}, {"b": "Mancera", "n": "Aoud Violet"}, {"b": "Mancera", "n": "Black Intensive Aoud"}, {"b": "Mancera", "n": "Black Line"}, {"b": "Mancera", "n": "Black To Black"}, {"b": "Mancera", "n": "Blackgold"}, {"b": "Mancera", "n": "Blueaoud"}, {"b": "Mancera", "n": "Cedrat Boise"}, {"b": "Mancera", "n": "Cocovanille"}, {"b": "Mancera", "n": "Gold Intensive Aoud"}, {"b": "Mancera", "n": "Gold Prestigium"}, {"b": "Mancera", "n": "Hindu Kush"}, {"b": "Mancera", "n": "Indian Dream"}, {"b": "Mancera", "n": "Lemon Line"}, {"b": "Mancera", "n": "Musk of Flowers"}, {"b": "Mancera", "n": "Musky Garden"}, {"b": "Mancera", "n": "Oudline"}, {"b": "Mancera", "n": "Pearl"}, {"b": "Mancera", "n": "Pink Roses"}, {"b": "Mancera", "n": "Roses Aoud Musk"}, {"b": "Mancera", "n": "Roses Chocolate"}, {"b": "Mancera", "n": "Roses Greedy"}, {"b": "Mancera", "n": "Roses Jasmine"}, {"b": "Mancera", "n": "Sand Aoud"}, {"b": "Mancera", "n": "The Aoud"}, {"b": "Mancera", "n": "Velvet Vanil la"}, {"b": "Mancera", "n": "Wild Fruits"}, {"b": "Mancera", "n": "Wild Python"}, {"b": "Mancera", "n": "Wild Rose Aoud"}, {"b": "Mancera", "n": "Windwood"}, {"b": "Mancera", "n": "Wood & Spices"}, {"b": "Memo Paris", "n": "Moroccan Leather"}, {"b": "Mont Blanc", "n": "Emblem"}, {"b": "Mont Blanc", "n": "Emblem Absolu"}, {"b": "Mont Blanc", "n": "Emblem Intense"}, {"b": "Mont Blanc", "n": "Individuel"}, {"b": "Mont Blanc", "n": "Lady Emblem"}, {"b": "Mont Blanc", "n": "Lady Emblem Elixir"}, {"b": "Mont Blanc", "n": "Legend"}, {"b": "Mont Blanc", "n": "Legend Night"}, {"b": "Mont Blanc", "n": "Legend Spirit"}, {"b": "Mont Blanc", "n": "Presence"}, {"b": "Mont Blanc", "n": "Signature"}, {"b": "Montale", "n": "Aoud Lagoon"}, {"b": "Montale", "n": "Aoud Lime"}, {"b": "Montale", "n": "Aoud Queen Rose"}, {"b": "Montale", "n": "Arabians"}, {"b": "Montale", "n": "Black Aoud"}, {"b": "Montale", "n": "Black Musk"}, {"b": "Montale", "n": "Chocolate Greedy"}, {"b": "Montale", "n": "Mukhallat"}, {"b": "Montale", "n": "Orange Aoud"}, {"b": "Montale", "n": "Orchid Powder"}, {"b": "Montale", "n": "Powder Flowers"}, {"b": "Montale", "n": "Pure Gold"}, {"b": "Montale", "n": "Roses Elixir"}, {"b": "Montale", "n": "Roses Musk"}, {"b": "Montale", "n": "Roses Musk Intense"}, {"b": "Montale", "n": "Soleil de Capri"}, {"b": "Montale", "n": "Starry Night"}, {"b": "Montale", "n": "Tropical Wood"}, {"b": "Moschino", "n": "Fresh Couture"}, {"b": "Moschino", "n": "Gold Fresh Couture"}, {"b": "Moschino", "n": "Pink Fresh Couture"}, {"b": "Narciso Rodriguez", "n": "Fleur Musc Florale"}, {"b": "Narciso Rodriguez", "n": "For Her"}, {"b": "Narciso Rodriguez", "n": "For Her Rose Musc"}, {"b": "Narciso Rodriguez", "n": "For Him Bleunoir"}, {"b": "Narciso Rodriguez", "n": "For Him Bleunoir Extreme"}, {"b": "Narciso Rodriguez", "n": "Narciso Poudree"}, {"b": "Narciso Rodriguez", "n": "Oud Musc Intense"}, {"b": "Nasomatto", "n": "China White"}, {"b": "Nishane", "n": "Hacivat"}, {"b": "Orto Parisi", "n": "Brutus"}, {"b": "Paco Rabanne", "n": "Black Xs"}, {"b": "Paco Rabanne", "n": "Black Xs for Woman"}, {"b": "Paco Rabanne", "n": "Invictus"}, {"b": "Paco Rabanne", "n": "Invictus Legend"}, {"b": "Paco Rabanne", "n": "Invictus Onyx Collector Edition"}, {"b": "Paco Rabanne", "n": "Lady Million Lucky"}, {"b": "Paco Rabanne", "n": "Olympea"}, {"b": "Paco Rabanne", "n": "Olympea Aqua"}, {"b": "Paco Rabanne", "n": "Olympea Onyx Collector Edition"}, {"b": "Paco Rabanne", "n": "One Million"}, {"b": "Paco Rabanne", "n": "Paco"}, {"b": "Paco Rabanne", "n": "Pour Homme"}, {"b": "Paco Rabanne", "n": "Ultraviolet for Man"}, {"b": "Paco Rabanne", "n": "Ultraviolet for Woman"}, {"b": "Paco Rabanne", "n": "Xs Excess"}, {"b": "Parfums de Marly", "n": "Delina Exclusif"}, {"b": "Parfums de Nicolai", "n": "Amber Oud"}, {"b": "Parfums de Nicolai", "n": "Incense Oud"}, {"b": "Parfums de Nicolai", "n": "Kiss Me Intense"}, {"b": "Prada", "n": "Amber"}, {"b": "Prada", "n": "Candy"}, {"b": "Prada", "n": "La Femme Absolu"}, {"b": "Prada", "n": "La Femme Leau"}, {"b": "Prada", "n": "La Femme Water Splash"}, {"b": "Prada", "n": "Les Infusions de Prada Iris Cedre"}, {"b": "Prada", "n": "Luna Rossa"}, {"b": "Prada", "n": "Luna Rossa Black"}, {"b": "Prada", "n": "Luna Rossa Carbon"}, {"b": "Ramon Monegal", "n": "Attract One Musk"}, {"b": "Tiziana Terenzi", "n": "Arethusa"}, {"b": "Tiziana Terenzi", "n": "Cas"}, {"b": "Tiziana Terenzi", "n": "Gold Rose Oudh"}, {"b": "Tiziana Terenzi", "n": "Vele"}, {"b": "Trussardi", "n": "Black Extreme"}, {"b": "Trussardi", "n": "Delicate Rose"}, {"b": "Trussardi", "n": "Donna Intense"}, {"b": "Trussardi", "n": "Myland"}, {"b": "Trussardi", "n": "Myname"}, {"b": "Trussardi", "n": "Myscent"}, {"b": "Trussardi", "n": "Riflesso"}, {"b": "Trussardi", "n": "The Blackrose"}, {"b": "Trussardi", "n": "Uomo"}, {"b": "Trussardi", "n": "Uomo The Red"}, {"b": "Valentino", "n": "Donna Acqua Valenti No"}, {"b": "Valentino", "n": "Noir Absolu Musc Essence"}, {"b": "Valentino", "n": "Uomo Acqua"}, {"b": "Valentino", "n": "Uomo Born in Roma"}, {"b": "Valentino", "n": "Valentina Myrrh Assoluto"}, {"b": "Valentino", "n": "Valentina Pink"}, {"b": "Valentino", "n": "Voce Viva"}, {"b": "Van Cleef & Arpels", "n": "Collection Extraordinaire Bois d'Iris"}, {"b": "Van Cleef & Arpels", "n": "Collection Extraordinaire California Reverie"}, {"b": "Van Cleef & Arpels", "n": "Collection Extraordinaire Reve d'Encens"}, {"b": "Van Cleef & Arpels", "n": "Collection Extraordinaire Rose Rouge"}, {"b": "Van Cleef & Arpels", "n": "So First"}, {"b": "Versace", "n": "Bright Crystal"}, {"b": "Versace", "n": "Bright Crystal Absolu"}, {"b": "Versace", "n": "Crystal Noir"}, {"b": "Versace", "n": "Eau Fraiche"}, {"b": "Versace", "n": "Eros Flame"}, {"b": "Versace", "n": "Eros Pour Femme"}, {"b": "Versace", "n": "Lhomme"}, {"b": "Versace", "n": "Oud Oriental"}, {"b": "Versace", "n": "Pour Homme Oud Noir"}, {"b": "Versace", "n": "Red Jeans"}, {"b": "Versace", "n": "Versense"}, {"b": "Versace", "n": "Woman"}, {"b": "Versace", "n": "Yellow Diamond"}, {"b": "Viktor & Rolf", "n": "Bonbon"}, {"b": "Viktor & Rolf", "n": "Flowerbomb"}, {"b": "Viktor & Rolf", "n": "Flowerbomb Bloom"}, {"b": "Viktor & Rolf", "n": "Flowerbomb Nectar"}, {"b": "Viktor & Rolf", "n": "Spicebomb"}, {"b": "Yves Saint Laurent", "n": "Black Opium Floral Shock"}, {"b": "Yves Saint Laurent", "n": "Black Opium Intense"}, {"b": "Yves Saint Laurent", "n": "Black Opium Neon"}, {"b": "Yves Saint Laurent", "n": "Black Opium Nuit Blanche"}, {"b": "Yves Saint Laurent", "n": "Cinema"}, {"b": "Yves Saint Laurent", "n": "La Nuit de Lhomme"}, {"b": "Yves Saint Laurent", "n": "Libre"}, {"b": "Yves Saint Laurent", "n": "M7 Oud Absolu"}, {"b": "Yves Saint Laurent", "n": "Manifesto"}, {"b": "Yves Saint Laurent", "n": "Mon Paris"}, {"b": "Yves Saint Laurent", "n": "Mon Paris Couture"}, {"b": "Yves Saint Laurent", "n": "Mon Paris Floral"}, {"b": "Yves Saint Laurent", "n": "Opium"}, {"b": "Yves Saint Laurent", "n": "Parisienne"}];
+
 // Scoring criteria — weights are user-editable and persisted.
 const CRITERIA = [
   { key:"longevity",  ar:"الثبات",              hint:"كم ساعة يعيش على البشرة",        w:25 },
@@ -758,6 +826,7 @@ const LS_STATE = "3altayer.moodstudio.state.v1";
 const LS_ARCH  = "3altayer.moodstudio.archive.v1";
 const LS_PERF  = "3altayer.moodstudio.perfumers.v1";
 const LS_THEME = "3altayer.moodstudio.theme.v1";
+const LS_PLAN  = "3altayer.moodstudio.plan.v1";
 
 /* ============================================================
    STATE
@@ -774,7 +843,7 @@ const state = {
   weights:Object.fromEntries(CRITERIA.map(c => [c.key, c.w])),
   scoreLabel:"الأداء",
   feeling:"", note:"", handle:"3altayer.com",
-  badge:"tr", textSide:"right",
+  badge:"tr", textSide:"right", dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:55
 };
 
@@ -782,6 +851,7 @@ let photoImg = null;          // HTMLImageElement of the bottle shot
 let perfumerImg = null;       // HTMLImageElement of the perfumer portrait
 let perfumerMap = {};         // { "pierre bourdon": dataURL }
 let archive = [];
+let plan    = [];
 let showGuides = false;
 let fontsReady = false;
 
@@ -1360,6 +1430,20 @@ function drawTextStack(startY){
   const maxW    = W - M * 2;
   let y = startY;
 
+  // day counter — the thread that makes a daily series feel like a series
+  if (state.dayOn && state.dayNum > 0){
+    ctx.font = '500 40px Tajawal, sans-serif';
+    ctx.direction = "rtl";
+    ctx.textAlign = side === "right" ? "right" : "left";
+    ctx.textBaseline = "alphabetic";
+    shadowOn(14, 0.75, 3);
+    ctx.fillStyle = "rgba(255,255,255,.74)";
+    ctx.fillText("اليوم " + toAr(state.dayNum), anchorX, y);
+    shadowOff();
+    ctx.direction = "ltr";
+    y += 60;
+  }
+
   // perfume name, handwritten
   const title = [state.brand, state.pname].filter(t => String(t).trim()).join(", ");
   if (title){
@@ -1791,6 +1875,7 @@ function renderArchive(){
       archive = archive.filter(e => e.id !== entry.id);
       lsSet(LS_ARCH, archive);
       renderArchive();
+      refreshDup();
       toast("انحذف");
     });
 
@@ -1811,7 +1896,8 @@ function snapshot(){
     accords:JSON.parse(JSON.stringify(state.accords)),
     gM:state.gM, gU:state.gU, gF:state.gF, gender:state.gender,
     seasons:state.seasons.slice(), times:state.times.slice(),
-    feeling:state.feeling, note:state.note, scoreLabel:state.scoreLabel
+    feeling:state.feeling, note:state.note, scoreLabel:state.scoreLabel,
+    day:state.dayNum
   };
 }
 
@@ -1824,13 +1910,191 @@ function loadEntry(e){
     gM:e.gM, gU:e.gU, gF:e.gF, gender:e.gender || "auto",
     seasons:(e.seasons || []).slice(), times:(e.times || []).slice(),
     feeling:e.feeling || "", note:e.note || "",
-    scoreLabel:e.scoreLabel || "الأداء"
+    scoreLabel:e.scoreLabel || "الأداء",
+    dayNum:e.day || state.dayNum
   });
   syncControls();
+  refreshDup();
   loadPerfumerPhoto(state.perfumer).then(scheduleRender);
   onChange();
   toast("رجّعت التقييم — بس ارفع الصورة");
   window.scrollTo({ top:0, behavior:"smooth" });
+}
+
+/* ---------- catalogue, duplicate guard, publishing queue ---------- */
+// Arabic names for every brand in the catalogue, so search works in the
+// language he actually types. Extra spellings are included on purpose.
+const BRAND_AR = {
+ "Amouage":"امواج","Armani":"ارماني","Atelier des Ors":"اتيليه دي اور",
+ "Bentley":"بنتلي","Boucheron":"بوشرون","Burberry":"بربري","Bvlgari":"بولغاري بلغاري",
+ "Carolina Herrera":"كارولينا هيريرا","Cartier":"كارتير","Chanel":"شانيل","Chloe":"كلوي",
+ "Coach":"كوتش","Davidoff":"دافيدوف","Dior":"ديور","Dolce & Gabbana":"دولتشي غابانا دولشي",
+ "Dunhill":"دنهل","Elie Saab":"ايلي صعب","Emporio Armani":"امبوريو ارماني",
+ "Givenchy":"جيفنشي","Gucci":"غوتشي قوتشي","Guerlain":"غيرلان جيرلان","Hermes":"هيرميس",
+ "Hugo Boss":"هوغو بوس هوقو","Jean Paul Gaultier":"جان بول غوتييه جوتييه",
+ "Lalique":"لاليك","Lancome":"لانكوم","Mancera":"مانسيرا","Memo Paris":"ميمو باريس",
+ "Mont Blanc":"مون بلان","Montale":"مونتال","Moschino":"موسكينو",
+ "Narciso Rodriguez":"نارسيسو رودريغيز","Nasomatto":"نازوماتو","Nishane":"نيشان",
+ "Orto Parisi":"اورتو باريزي","Paco Rabanne":"باكو رابان",
+ "Parfums de Marly":"بارفان دي مارلي مارلي","Parfums de Nicolai":"نيكولاي",
+ "Prada":"برادا","Ramon Monegal":"رامون مونيغال","Tiziana Terenzi":"تيزيانا تيرينزي",
+ "Trussardi":"تروساردي","Valentino":"فالنتينو","Van Cleef & Arpels":"فان كليف اربلز",
+ "Versace":"فيرزاتشي فيرساتشي","Viktor & Rolf":"فيكتور اند رولف",
+ "Yves Saint Laurent":"ايف سان لوران"
+};
+
+// Fold alef/ya/ta-marbuta variants and strip harakat, so "أمواج" finds "امواج".
+function foldAr(t){
+  return String(t)
+    .replace(/[\u0623\u0625\u0622\u0671]/g, "\u0627")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\u0649/g, "\u064A")
+    .replace(/[\u064B-\u0652\u0640]/g, "");
+}
+const norm = t => foldAr(String(t || "").trim().toLowerCase()).replace(/\s+/g, " ");
+const ratedKey = (b, n) => norm(b) + "|" + norm(n);
+
+function findRated(brand, pname){
+  const k = ratedKey(brand, pname);
+  if (!norm(pname)) return null;
+  let best = null;
+  for (const e of archive){
+    if (ratedKey(e.brand, e.pname) !== k) continue;
+    if (!best || e.ts > best.ts) best = e;
+  }
+  return best;
+}
+
+function refreshDup(){
+  const box = $("#dupWarn");
+  const hit = findRated(state.brand, state.pname);
+  if (!hit){ box.hidden = true; return; }
+  const days = Math.max(0, Math.round((Date.now() - hit.ts) / 86400000));
+  box.textContent = "";
+  const tag = document.createElement("span"); tag.textContent = "⚠︎";
+  const txt = document.createElement("span");
+  txt.append("قيّمته من قبل " + (days === 0 ? "اليوم" : "قبل " + toAr(days) + " يوم") + " بـ ");
+  const b = document.createElement("b"); b.textContent = Number(hit.score).toFixed(2);
+  txt.appendChild(b);
+  box.append(tag, txt);
+  box.hidden = false;
+}
+
+function buildCatalogSearch(){
+  const inp  = $("#catSearch");
+  const list = $("#catList");
+  const close = () => { list.hidden = true; };
+
+  const open = q => {
+    const term = norm(q);
+    const rated = new Set(archive.map(e => ratedKey(e.brand, e.pname)));
+    const hits = (term
+      ? CATALOG.filter(r => norm(r.b + " " + r.n + " " + (BRAND_AR[r.b] || "")).includes(term))
+      : CATALOG).slice(0, 60);
+    list.textContent = "";
+    if (!hits.length){
+      const p = document.createElement("div");
+      p.className = "empty"; p.style.padding = "14px";
+      p.textContent = "ما فيه نتيجة — اكتب الاسم يدوي تحت";
+      list.appendChild(p); list.hidden = false; return;
+    }
+    hits.forEach(r => {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "accord-opt";
+      const nm = document.createElement("b"); nm.textContent = r.n;
+      const br = document.createElement("span");
+      br.textContent = BRAND_AR[r.b] ? r.b + " · " + BRAND_AR[r.b].split(" ")[0] : r.b;
+      btn.append(nm, br);
+      if (rated.has(ratedKey(r.b, r.n))){
+        const done = document.createElement("span");
+        done.className = "opt-done"; done.textContent = "✓ قيّمته";
+        btn.appendChild(done);
+      }
+      btn.addEventListener("mousedown", ev => {
+        ev.preventDefault();
+        state.brand = r.b; state.pname = r.n;
+        $("#brand").value = r.b; $("#pname").value = r.n;
+        inp.value = ""; close(); refreshDup(); onChange();
+      });
+      list.appendChild(btn);
+    });
+    list.hidden = false;
+  };
+
+  inp.addEventListener("focus", () => open(inp.value));
+  inp.addEventListener("input", () => open(inp.value));
+  inp.addEventListener("blur", () => setTimeout(close, 140));
+  inp.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+}
+
+// Round-robin across brands so a week of stories is not seven Manceras.
+function pickForQueue(count){
+  const taken = new Set(archive.map(e => ratedKey(e.brand, e.pname)));
+  plan.forEach(x => taken.add(ratedKey(x.b, x.n)));
+  const byBrand = new Map();
+  CATALOG.forEach(r => {
+    if (taken.has(ratedKey(r.b, r.n))) return;
+    if (!byBrand.has(r.b)) byBrand.set(r.b, []);
+    byBrand.get(r.b).push(r);
+  });
+  let brands = Array.from(byBrand.keys());
+  if (!brands.length) return [];
+  const out = [];
+  let i = archive.length % brands.length;
+  let guard = 0;
+  while (out.length < count && brands.length && guard++ < 4000){
+    const b = brands[i % brands.length];
+    const bucket = byBrand.get(b);
+    if (bucket && bucket.length){ out.push(bucket.shift()); i++; }
+    else { brands = brands.filter(x => x !== b); }
+  }
+  return out;
+}
+
+function renderPlan(){
+  const host = $("#planList");
+  host.textContent = "";
+  if (!plan.length){
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "القائمة فاضية — اضغط «املأ ٧ أيام»";
+    host.appendChild(p);
+    $("#planNote").textContent = "القائمة فاضية";
+    return;
+  }
+  plan.forEach((item, i) => {
+    const row = document.createElement("div");
+    row.className = "arch-row" + (i === 0 ? " is-next" : "");
+
+    const idx = document.createElement("div");
+    idx.className = "plan-idx"; idx.textContent = toAr(i + 1);
+
+    const nm = document.createElement("div");
+    nm.className = "arch-name"; nm.textContent = item.n;
+    const sub = document.createElement("em"); sub.textContent = item.b;
+    nm.appendChild(sub);
+
+    const use = document.createElement("button");
+    use.type = "button"; use.className = "icon-btn"; use.textContent = "جهّزه";
+    use.addEventListener("click", () => {
+      state.brand = item.b; state.pname = item.n;
+      $("#brand").value = item.b; $("#pname").value = item.n;
+      refreshDup(); onChange();
+      toast("جاهز — صوّر وعبّي الباقي");
+      window.scrollTo({ top:0, behavior:"smooth" });
+    });
+
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "icon-btn danger"; del.textContent = "شِله";
+    del.setAttribute("aria-label", "شِل " + item.n + " من القائمة");
+    del.addEventListener("click", () => {
+      plan.splice(i, 1); lsSet(LS_PLAN, plan); renderPlan();
+    });
+
+    row.append(idx, nm, use, del);
+    host.appendChild(row);
+  });
+  $("#planNote").textContent = toAr(plan.length) + " جاهزة · التالي: " + plan[0].n;
 }
 
 /* ---------- perfumer photo memory ---------- */
@@ -1852,6 +2116,8 @@ function syncControls(){
   set("scoreLabel", state.scoreLabel); set("feeling", state.feeling);
   set("note", state.note); set("handle", state.handle);
   set("badgeOn", state.badge); set("textSide", state.textSide);
+  set("dayNum", state.dayNum);
+  const dOn = $("#dayOn"); if (dOn) dOn.value = state.dayOn ? "1" : "0";
   set("zoom", state.zoom); set("pan", state.pan); set("panX", state.panX); set("scrim", state.scrim);
   const co = $("#cardOn"); if (co) co.checked = state.cardOn;
   buildAccordSlots();
@@ -2005,7 +2271,9 @@ function restore(){
     if (!Array.isArray(state.times))   state.times   = [];
   }
   archive     = lsGet(LS_ARCH, []) || [];
+  plan        = lsGet(LS_PLAN, []) || [];
   perfumerMap = lsGet(LS_PERF, {}) || {};
+  if (!saved || saved.dayNum === undefined) state.dayNum = archive.length + 1;
   applyTheme(lsGet(LS_THEME, "auto") || "auto");
 }
 
@@ -2037,6 +2305,26 @@ function wire(){
   bind("handle", "handle");
   bind("badgeOn", "badge");
   bind("textSide", "textSide");
+  bind("dayNum", "dayNum", v => Math.max(0, parseInt(v, 10) || 0));
+  $("#dayOn").addEventListener("change", e => {
+    state.dayOn = e.target.value === "1"; onChange();
+  });
+
+  buildCatalogSearch();
+  $("#brand").addEventListener("input", refreshDup);
+  $("#pname").addEventListener("input", refreshDup);
+
+  $("#planFill").addEventListener("click", () => {
+    const picks = pickForQueue(7);
+    if (!picks.length){ toast("خلصت عطور الكتالوج غير المقيّمة", "err"); return; }
+    plan = plan.concat(picks);
+    lsSet(LS_PLAN, plan);
+    renderPlan();
+    toast("انضاف " + toAr(picks.length) + " عطر للقائمة");
+  });
+  $("#planClear").addEventListener("click", () => {
+    plan = []; lsSet(LS_PLAN, plan); renderPlan(); toast("فضّيت القائمة");
+  });
 
   [["zoom","zoom"],["pan","pan"],["panX","panX"],["scrim","scrim"],["cardScale","cardScale"]]
     .forEach(([id, key]) => {
@@ -2095,9 +2383,17 @@ function wire(){
   $("#archSave").addEventListener("click", () => {
     if (!String(state.pname).trim()){ toast("اكتب اسم العطر أول", "err"); return; }
     archive.push(snapshot());
-    if (!lsSet(LS_ARCH, archive)) toast("الذاكرة ممتلئة — صدّر نسخة واحذف قديم", "err");
-    else toast("انحفظ بالأرشيف ✓");
-    renderArchive();
+    const stored = lsSet(LS_ARCH, archive);
+    const k = ratedKey(state.brand, state.pname);
+    const before = plan.length;
+    plan = plan.filter(x => ratedKey(x.b, x.n) !== k);
+    if (plan.length !== before) lsSet(LS_PLAN, plan);
+    state.dayNum = Math.max(1, (parseInt(state.dayNum, 10) || 0) + 1);
+    const dn = $("#dayNum"); if (dn) dn.value = state.dayNum;
+    if (!stored) toast("الذاكرة ممتلئة — صدّر نسخة واحذف قديم", "err");
+    else toast("انحفظ ✓ — بكرة اليوم " + toAr(state.dayNum)
+               + (plan.length ? " · " + plan[0].n : ""));
+    renderArchive(); renderPlan(); refreshDup(); persist();
   });
 
   $("#archExport").addEventListener("click", exportArchive);
@@ -2119,6 +2415,8 @@ function wire(){
   wire();
   syncControls();
   renderArchive();
+  renderPlan();
+  refreshDup();
   updateSummaries();
   render(false);                       // paint something immediately
   await loadPerfumerPhoto(state.perfumer);
