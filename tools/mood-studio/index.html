@@ -1028,24 +1028,22 @@ function drawGhostFallback(cx, cy, w, color){
   ctx.fill();
 }
 
-// The app-icon lockup: yellow rounded square, white ghost.
-function drawSnapBadge(cx, cy, size){
+// The ghost on its own, in Snapchat yellow — no badge. At this size the
+// rounded square ate the mark; the silhouette alone reads cleaner.
+function drawSnapMark(cx, cy, size){
   ctx.save();
-  shadowOn(14, 0.5, 3);
-  ctx.fillStyle = "#FFFC00";
-  roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.28);
-  ctx.fill();
-  shadowOff();
+  shadowOn(12, 0.6, 2);
   const path = getSnapPath();
   if (path){
-    const g = size * 0.72, k = g / 24;
-    ctx.translate(cx - g / 2, cy - g / 2);
+    const k = size / 24;
+    ctx.translate(cx - size / 2, cy - size / 2);
     ctx.scale(k, k);
-    ctx.fillStyle = "#FFFFFF";
+    ctx.fillStyle = "#FFFC00";
     ctx.fill(path);
   } else {
-    drawGhostFallback(cx, cy - size * 0.01, size * 0.60, "#FFFFFF");
+    drawGhostFallback(cx, cy, size * 0.86, "#FFFC00");
   }
+  shadowOff();
   ctx.restore();
 }
 
@@ -1263,7 +1261,7 @@ function drawColumn(startY){
     const tw = ctx.measureText(snap).width;
     ctx.letterSpacing = "0px";
     shadowOff();
-    drawSnapBadge(right - tw - 13 - 18, y - fs * 0.33, 36);
+    drawSnapMark(right - tw - 14 - 16, y - fs * 0.34, 32);
     y += 52;
   }
 
