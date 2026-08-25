@@ -718,7 +718,7 @@ input[type="range"]::-moz-range-thumb{
         <div class="card-body">
           <div class="field">
             <label for="scoreLabel">كلمة التقييم</label>
-            <input type="text" id="scoreLabel" value="تجربتي الشخصية" maxlength="22">
+            <input type="text" id="scoreLabel" value="التقييم" maxlength="22">
             <p class="hint">تظهر جنب رقمك على الصورة.</p>
           </div>
           <div class="field">
@@ -862,7 +862,7 @@ const state = {
   panelMode:"full", cardSide:"right", topGap:180, layout:"classic",
   scores:Object.fromEntries(CRITERIA.map(c => [c.key, 8.5])),
   weights:Object.fromEntries(CRITERIA.map(c => [c.key, c.w])),
-  scoreLabel:"تجربتي الشخصية", feeling:"", note:"", handle:"3altayer.com",
+  scoreLabel:"التقييم", feeling:"", note:"", handle:"3altayer.com",
   snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:58
@@ -1306,7 +1306,7 @@ function drawColumn(startY){
 
   // score
   const v = scoreOf();
-  const label = (state.scoreLabel || "الأداء") + ":";
+  const label = (state.scoreLabel || "التقييم") + ":";
   ctx.font = '500 106px Tajawal, sans-serif';
   const numW = ctx.measureText(v.toFixed(2)).width;
   ctx.font = '400 54px Tajawal, sans-serif';
@@ -1504,7 +1504,7 @@ function drawCommunity(x, right, y, w){
 // "تجربتي الشخصية  8.66" — label then number, laid right-to-left.
 function drawMyScore(right, y, numSize, labSize){
   const v = scoreOf();
-  const lab = (state.scoreLabel || "تجربتي الشخصية") + ":";
+  const lab = (state.scoreLabel || "التقييم") + ":";
   ctx.font = '400 ' + labSize + 'px Tajawal, sans-serif';
   const lw = ctx.measureText(lab).width;
   shadowOn(22, 0.82, 4);
@@ -1528,6 +1528,13 @@ function layoutPyramid(){
   const M2 = 84, right = W - M2;
   let y = SAFE_TOP + Number(state.topGap) + 30;
   y = drawHead(right, y, { nameSize:92, nameW:W - 200, nameGap:40 });
+
+  y += 76;
+  drawMyScore(right, y, 92, 44);
+  y += 52;
+  ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(M2, y); ctx.lineTo(right, y); ctx.stroke();
+  y += 70;
 
   const tiers = allNotes();
   const solo = tiers.length === 1;
@@ -1553,14 +1560,6 @@ function layoutPyramid(){
   y += 56;
 
   y = drawCommunity(M2, right, y, W - M2 * 2);
-
-  y += 8;
-  ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(M2, y); ctx.lineTo(right, y); ctx.stroke();
-  y += 78;
-
-  drawMyScore(right, y, 92, 44);
-  y += 34;
   return drawNoteBox(y + 20);
 }
 
@@ -1622,7 +1621,7 @@ function layoutPoster(){
   ctx.font = '400 32px Tajawal, sans-serif';
   ctx.direction = "rtl"; ctx.textAlign = "right";
   shadowOn(12, 0.7, 2); ctx.fillStyle = "rgba(255,255,255,.62)";
-  ctx.fillText(state.scoreLabel || "تجربتي الشخصية", right, y + 92); shadowOff();
+  ctx.fillText(state.scoreLabel || "التقييم", right, y + 92); shadowOff();
   y += 168;
 
   const feel = String(state.feeling).trim();
@@ -1672,7 +1671,7 @@ function layoutNumber(){
   ctx.font = '400 38px Tajawal, sans-serif';
   ctx.direction = "rtl"; ctx.textAlign = "center";
   shadowOn(14, 0.7, 3); ctx.fillStyle = "rgba(255,255,255,.6)";
-  ctx.fillText((state.scoreLabel || "تجربتي الشخصية") + " · من ١٠", W / 2, cy + 62);
+  ctx.fillText((state.scoreLabel || "التقييم") + " · من ١٠", W / 2, cy + 62);
   shadowOff();
   let y = cy + 168;
 
