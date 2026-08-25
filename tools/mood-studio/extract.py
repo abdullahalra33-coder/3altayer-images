@@ -132,6 +132,14 @@ def clean_name(full, brand_latin):
 
 # Read every export in xl/ (Salla splits the catalogue across files) and keep
 # the richest row per product; the exports overlap heavily.
+# store_orig/ filenames are the Salla product ids, so the catalogue's photos
+# are already in this repo — no CDN fetch needed.
+IMG_DIR = os.environ.get('STORE_ORIG', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'store_orig'))
+REPO_IMAGES = set()
+if os.path.isdir(IMG_DIR):
+    REPO_IMAGES = {os.path.splitext(f)[0] for f in os.listdir(IMG_DIR)}
+print(f"صور محلية في store_orig: {len(REPO_IMAGES)}")
+
 FILES = sorted(glob.glob('xl/*.xlsx')) or ['products.xlsx']
 rows_in = {}
 for path in FILES:
@@ -160,12 +168,14 @@ for row in rows_in.values():
     rec = parse(desc, name, brand_raw)
     if not rec: skipped += 1; continue
     rec["b"] = brand; rec["n"] = pname
+    pid = str(row[0]).strip()
+    if pid and pid in REPO_IMAGES: rec["i"] = pid
     ar = arabic_keywords(name, brand_raw)
     if ar: rec["a"] = ar
     rec["_ba"] = " ".join(re.findall(r'[؀-ۿ]+', brand_raw))
     if price: rec["r"] = round(float(price))
     key = (brand.lower(), re.sub(r'\s+', ' ', pname.lower()))
-    score = len(rec) + 3 * sum(1 for k in ("t","m","z") if rec.get(k))
+    score = len(rec) + 3 * sum(1 for k in ("t","m","z") if rec.get(k)) + (4 if rec.get("i") else 0)
     prev = best.get(key)
     if prev is None or score > prev[0]: best[key] = (score, rec)
 
@@ -193,7 +203,7 @@ import os
 print(f"rows read: {total} | unique perfumes: {len(rows)} | skipped: {skipped}")
 print("json size:", os.path.getsize('perfumes.json'), "bytes")
 have = lambda k: sum(1 for r in rows if r.get(k) is not None)
-for k, lab in (("t","pyramid top"),("l","longevity"),("p","sillage"),("c","community"),
+for k, lab in (("i","repo image"),("t","pyramid top"),("l","longevity"),("p","sillage"),("c","community"),
                ("e","season"),("g","gender"),("u","perfumer"),("f","family"),("y","year"),("r","price")):
     print(f"  {lab:14} {have(k):5}  ({have(k)*100//len(rows)}%)")
 from collections import Counter
