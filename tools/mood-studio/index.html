@@ -450,6 +450,9 @@ input[type="range"]::-moz-range-thumb{
 </head>
 <body>
 
+</head>
+<body>
+
 
 
 <div class="shell">
@@ -666,7 +669,7 @@ input[type="range"]::-moz-range-thumb{
       <details class="card" open>
         <summary>
           <span class="step">٤</span>
-          الأداء
+          تقييمك
           <span class="summary-note" id="scoreNote">&mdash;</span>
           <svg class="chev" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </summary>
@@ -678,20 +681,19 @@ input[type="range"]::-moz-range-thumb{
               <div class="score-sub" id="scoreSub">حرّك المعايير تحت</div>
             </div>
           </div>
-          <div class="field">
-            <span class="lbl">كيف انحسب</span>
-            <p class="hint">(تقييم المجتمع + الثبات + الفوحان) ÷ ٣ × ٢ + ١ — الأرقام الثلاثة من فراغرانتيكا، تتعبّى مع العطر.</p>
-          </div>
-          <div id="scoreParts" style="display:flex;flex-direction:column;gap:5px"></div>
-          <hr class="divider">
-          <label class="chip" style="align-self:flex-start;cursor:pointer">
-            <input type="checkbox" id="scoreOverride" style="width:auto;margin:0">
-            عدّل الرقم يدوي
-          </label>
-          <div class="field" id="manualWrap" hidden>
-            <label for="scoreManual">الرقم اليدوي</label>
-            <input type="number" id="scoreManual" min="0" max="10" step="0.01" dir="ltr">
-          </div>
+          <p class="hint">الثبات والفوحان يتعبّون تلقائي من أرقام المجتمع (القيمة ×٢ +١)، والأربعة الباقية رأيك أنت. عدّل أي واحد.</p>
+          <div id="critList" style="display:flex;flex-direction:column;gap:14px"></div>
+          <button class="icon-btn" type="button" id="seedBtn" style="align-self:flex-start">
+            ↺ رجّع الثبات والفوحان لأرقام المجتمع
+          </button>
+          <details>
+            <summary style="cursor:pointer;font-size:12.5px;color:var(--ink3);padding:4px 0">
+              أوزان المعادلة — عدّلها على ذوقك
+            </summary>
+            <div id="weightList" style="display:flex;flex-direction:column;gap:8px;padding-top:10px"></div>
+            <div class="hint" id="weightSum" style="padding-top:8px"></div>
+            <button class="icon-btn" type="button" id="resetWeights" style="margin-top:8px">رجّع الأوزان الأصلية</button>
+          </details>
         </div>
       </details>
 
@@ -812,14 +814,21 @@ const DATA = {"d":{"g":["رجالي","للجنسين","للجنسين، الكل
 const PERFUMES = DATA.p;
 
 
-// Cut at the real percentiles of this formula across the 3248 rated
-// perfumes: 9.20 = top 5%, 8.60 = top 25%, 8.10 ~ median, 7.70 = top 75%.
+const CRITERIA = [
+  { key:"longevity",  ar:"الثبات",            hint:"كم ساعة يعيش على البشرة",      w:25 },
+  { key:"projection", ar:"الفوحان",            hint:"كم يوصل ريحه لمن حولك",         w:20 },
+  { key:"signature",  ar:"البصمة والتميّز",    hint:"مختلف ولا نسخة من غيره",       w:20 },
+  { key:"quality",    ar:"جودة المكوّنات",     hint:"نقاء الزيوت وإحساس الفخامة",   w:15 },
+  { key:"versatility",ar:"تنوّع الاستعمال",    hint:"يصلح لأكثر من مناسبة وموسم",   w:10 },
+  { key:"value",      ar:"السعر مقابل القيمة", hint:"يستاهل فلوسه ولا لا",           w:10 }
+];
+
 const TIERS = [
-  [9.20, "توقيع — خذه بعيون مغمّضة"],
-  [8.60, "ممتاز — من الصف الأول"],
-  [8.10, "قوي — يستاهل التجربة"],
-  [7.70, "جيّد — حلو بس مو استثنائي"],
-  [7.00, "عادي — جرّبه قبل ما تشتري"],
+  [9.30, "توقيع — خذه بعيون مغمّضة"],
+  [8.75, "ممتاز — من الصف الأول"],
+  [8.20, "قوي — يستاهل التجربة"],
+  [7.50, "جيّد — حلو بس مو استثنائي"],
+  [6.50, "عادي — جرّبه قبل ما تشتري"],
   [0.00, "ضعيف — عدّه"]
 ];
 
@@ -839,7 +848,8 @@ const state = {
   mGender:"", mSeason:"", mTime:"",
   fromStore:false,
   panelMode:"full", cardSide:"right", topGap:180,
-  scoreOverride:false, scoreManual:"",
+  scores:Object.fromEntries(CRITERIA.map(c => [c.key, 8.5])),
+  weights:Object.fromEntries(CRITERIA.map(c => [c.key, c.w])),
   scoreLabel:"الأداء", feeling:"", note:"", handle:"3altayer.com",
   snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
@@ -875,28 +885,13 @@ function foldAr(t){
 const norm = t => foldAr(String(t || "").trim().toLowerCase()).replace(/\s+/g, " ");
 const ratedKey = (b, n) => norm(b) + "|" + norm(n);
 
-// The three community numbers are each out of 5; the mean doubled lands on a
-// 10-point scale, and the +1 is a fixed lift.
-function scoreParts(){
-  return [
-    ["تقييم المجتمع", state.community],
-    ["الثبات",        state.longevity],
-    ["الفوحان",       state.sillage]
-  ].filter(x => x[1] > 0);
-}
-function autoScore(){
-  const parts = scoreParts();
-  if (!parts.length) return null;
-  const avg = parts.reduce((a, x) => a + x[1], 0) / parts.length;
-  return clamp(avg * 2 + 1, 0, 10);
-}
 function scoreOf(){
-  if (state.scoreOverride){
-    const v = parseFloat(state.scoreManual);
-    if (isFinite(v)) return clamp(v, 0, 10);
+  let sum = 0, wsum = 0;
+  for (const c of CRITERIA){
+    const w = Number(state.weights[c.key]) || 0;
+    sum += (Number(state.scores[c.key]) || 0) * w; wsum += w;
   }
-  const a = autoScore();
-  return a === null ? 0 : a;
+  return wsum > 0 ? sum / wsum : 0;
 }
 const tierOf = v => (TIERS.find(t => v >= t[0]) || TIERS[TIERS.length - 1])[1];
 
@@ -1470,6 +1465,16 @@ function haystacks(){
   return HAY;
 }
 
+// Longevity and sillage are the two criteria Fragrantica already measures.
+// Its 5-point values map onto the 10-point sliders as v*2+1; the other four
+// are judgement calls and keep their defaults.
+function seedFromCommunity(){
+  let n = 0;
+  if (state.longevity > 0){ state.scores.longevity  = clamp(state.longevity * 2 + 1, 0, 10); n++; }
+  if (state.sillage   > 0){ state.scores.projection = clamp(state.sillage   * 2 + 1, 0, 10); n++; }
+  return n;
+}
+
 function applyRecord(r){
   Object.assign(state, {
     brand:r.b, pname:r.n,
@@ -1479,6 +1484,7 @@ function applyRecord(r){
     mGender:dictVal("g", r.g), mSeason:dictVal("e", r.e), mTime:dictVal("w", r.w),
     fromStore:true
   });
+  const seeded = seedFromCommunity();
   syncControls(); refreshDup(); onChange();
   const got = [];
   if (r.t || r.m || r.z) got.push("النوتات");
@@ -1487,6 +1493,7 @@ function applyRecord(r){
   if (r.c) got.push("فراغرانتيكا");
   if (r.e) got.push("الموسم");
   if (r.u) got.push("المُعطِّر");
+  if (seeded) got.push("وعبّيت " + toAr(seeded) + " من مؤشراتك");
   toast(got.length ? "انسحب: " + got.join(" · ") : "ما فيه تفاصيل لهذا العطر — عبّي يدوي",
         got.length ? "ok" : "err");
 }
@@ -1595,35 +1602,54 @@ function refreshDup(){
   box.append(a, t); box.hidden = false;
 }
 
+/* ---------- criteria ---------- */
+function buildCriteria(){
+  const host = $("#critList"); host.textContent = "";
+  CRITERIA.forEach(c => {
+    const row = document.createElement("div"); row.className = "slider-row";
+    const lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = c.ar;
+    const tip = document.createElement("span"); tip.className = "hint";
+    tip.style.fontWeight = "300"; tip.textContent = " — " + c.hint;
+    lbl.appendChild(tip);
+    const val = document.createElement("span"); val.className = "slider-val";
+    val.textContent = Number(state.scores[c.key]).toFixed(1);
+    const rng = document.createElement("input");
+    rng.type = "range"; rng.min = "0"; rng.max = "10"; rng.step = "0.1";
+    rng.value = state.scores[c.key]; rng.setAttribute("aria-label", c.ar);
+    rng.addEventListener("input", () => {
+      state.scores[c.key] = parseFloat(rng.value);
+      val.textContent = parseFloat(rng.value).toFixed(1);
+      updateScore(); onChange();
+    });
+    row.append(lbl, val, rng); host.appendChild(row);
+  });
+  const wh = $("#weightList"); wh.textContent = "";
+  CRITERIA.forEach(c => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:10px";
+    const l = document.createElement("span"); l.className = "lbl"; l.style.flex = "1"; l.textContent = c.ar;
+    const i = document.createElement("input");
+    i.type = "number"; i.className = "weight-in"; i.min = "0"; i.max = "100"; i.step = "1";
+    i.value = state.weights[c.key]; i.setAttribute("aria-label", "وزن " + c.ar);
+    i.addEventListener("input", () => {
+      state.weights[c.key] = clamp(parseFloat(i.value) || 0, 0, 100);
+      updateScore(); updateWeightSum(); onChange();
+    });
+    row.append(l, i); wh.appendChild(row);
+  });
+  updateWeightSum();
+}
+function updateWeightSum(){
+  const sum = CRITERIA.reduce((a, c) => a + (Number(state.weights[c.key]) || 0), 0);
+  const el = $("#weightSum");
+  el.textContent = "المجموع: " + toAr(sum) + (sum === 100 ? " ✓" : " — الحساب يظبط نفسه على أي مجموع");
+  el.style.color = sum === 100 ? "var(--sage)" : "var(--ink3)";
+}
 function updateScore(){
   const v = scoreOf();
-  const parts = scoreParts();
   $("#scoreBig").textContent = v.toFixed(2);
-  $("#scoreTier").textContent = parts.length ? tierOf(v) : "—";
-  $("#scoreSub").textContent = !parts.length
-    ? "اختر عطر عشان تجي أرقامه"
-    : state.scoreOverride ? "رقم يدوي" : "تلقائي من " + toAr(parts.length) + " أرقام";
-
-  const host = $("#scoreParts");
-  host.textContent = "";
-  if (!parts.length) return;
-  parts.forEach(([label, val]) => {
-    const row = document.createElement("div");
-    row.style.cssText = "display:flex;align-items:center;gap:10px;font-size:12.5px";
-    const l = document.createElement("span");
-    l.className = "lbl"; l.style.flex = "1"; l.textContent = label;
-    const n = document.createElement("b");
-    n.style.cssText = "font-variant-numeric:tabular-nums;direction:ltr;font-weight:600";
-    n.style.color = rgbStr(rampRGB(val / 5));
-    n.textContent = val.toFixed(2) + " / 5";
-    row.append(l, n); host.appendChild(row);
-  });
-  const avg = parts.reduce((a, x) => a + x[1], 0) / parts.length;
-  const sum = document.createElement("div");
-  sum.className = "hint";
-  sum.style.cssText = "padding-top:4px;direction:rtl";
-  sum.textContent = "المتوسط " + avg.toFixed(2) + " × ٢ + ١ = " + clamp(avg * 2 + 1, 0, 10).toFixed(2);
-  host.appendChild(sum);
+  $("#scoreTier").textContent = tierOf(v);
+  $("#scoreSub").textContent = "من ١٠ — متوسط موزون لـ" + toAr(CRITERIA.length) + " معايير";
 }
 
 function updateSummaries(){
@@ -1648,12 +1674,9 @@ function syncControls(){
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
   set("longevity", state.longevity); set("sillage", state.sillage);
   set("panelMode", state.panelMode); set("cardSide", state.cardSide);
-  set("scoreManual", state.scoreManual);
-  const ov = $("#scoreOverride");
-  if (ov){ ov.checked = !!state.scoreOverride; $("#manualWrap").hidden = !state.scoreOverride; }
   set("topGap", String(state.topGap));
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
-  updateScore(); updateRangeLabels();
+  buildCriteria(); updateScore(); updateRangeLabels();
 }
 function updateRangeLabels(){
   $("#zoomVal").textContent  = Number(state.zoom).toFixed(2);
@@ -1678,12 +1701,15 @@ function snapshot(){
     longevity:state.longevity, sillage:state.sillage, community:state.community,
     mGender:state.mGender, mSeason:state.mSeason, mTime:state.mTime,
     score:+scoreOf().toFixed(2),
-    scoreOverride:state.scoreOverride, scoreManual:state.scoreManual,
+    scores:Object.assign({}, state.scores),
+    weights:Object.assign({}, state.weights),
     feeling:state.feeling, note:state.note, scoreLabel:state.scoreLabel
   };
 }
 function loadEntry(e){
   Object.keys(state).forEach(k => { if (e[k] !== undefined) state[k] = e[k]; });
+  if (e.scores)  state.scores  = Object.assign({}, state.scores, e.scores);
+  if (e.weights) state.weights = Object.assign({}, state.weights, e.weights);
   if (e.day) state.dayNum = e.day;
   syncControls(); refreshDup(); onChange();
   toast("رجّعت التقييم — بس ارفع الصورة");
@@ -1815,8 +1841,8 @@ async function saveImage(){
 async function exportArchive(){
   if (!archive.length){ toast("الأرشيف فاضي", "err"); return; }
   const st = await offerFile("today-mood-archive.json", JSON.stringify(
-    { app:"today-mood", version:3, exportedAt:new Date().toISOString(),
-      ratings:archive }, null, 2));
+    { app:"today-mood", version:2, exportedAt:new Date().toISOString(),
+      weights:state.weights, ratings:archive }, null, 2));
   if (st === "saved") toast("انحفظت نسخة الأرشيف ✓"); else toast(MSG[st][0], MSG[st][1]);
 }
 function importArchive(file){
@@ -1830,7 +1856,8 @@ function importArchive(file){
       const seen = new Set(archive.map(e => e.id));
       let n = 0;
       rows.forEach(e => { if (e && e.id && !seen.has(e.id)){ seen.add(e.id); archive.push(e); n++; } });
-      lsSet(LS_ARCH, archive); renderArchive(); updateScore(); onChange();
+      if (data.weights) Object.assign(state.weights, data.weights);
+      lsSet(LS_ARCH, archive); renderArchive(); buildCriteria(); updateScore(); onChange();
       toast("انضاف " + toAr(n) + " تقييم");
     }catch(_){ toast("الملف مو صالح", "err"); }
   };
@@ -1889,22 +1916,8 @@ function wire(){
    ["longevity","longevity"],["sillage","sillage"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
-      state[key] = parseFloat(el.value); updateRangeLabels(); updateScore(); onChange();
+      state[key] = parseFloat(el.value); updateRangeLabels(); onChange();
     });
-  });
-
-  $("#scoreOverride").addEventListener("change", e => {
-    state.scoreOverride = e.target.checked;
-    $("#manualWrap").hidden = !state.scoreOverride;
-    if (state.scoreOverride && !String(state.scoreManual).trim()){
-      const a = autoScore();
-      state.scoreManual = a === null ? "" : a.toFixed(2);
-      $("#scoreManual").value = state.scoreManual;
-    }
-    updateScore(); onChange();
-  });
-  $("#scoreManual").addEventListener("input", e => {
-    state.scoreManual = e.target.value; updateScore(); onChange();
   });
 
   $("#photoIn").addEventListener("change", async e => {
@@ -1918,6 +1931,16 @@ function wire(){
     showGuides = !showGuides;
     $("#guideBtn").setAttribute("aria-pressed", String(showGuides));
     render(showGuides);
+  });
+  $("#seedBtn").addEventListener("click", () => {
+    const n = seedFromCommunity();
+    if (!n){ toast("ما فيه أرقام مجتمع لهذا العطر", "err"); return; }
+    buildCriteria(); updateScore(); onChange();
+    toast("رجّعت " + toAr(n) + " مؤشرات لأرقام المجتمع");
+  });
+  $("#resetWeights").addEventListener("click", () => {
+    CRITERIA.forEach(c => { state.weights[c.key] = c.w; });
+    buildCriteria(); updateScore(); onChange(); toast("رجّعت الأوزان الأصلية");
   });
   $("#planFill").addEventListener("click", () => {
     const picks = pickForQueue(7);
@@ -1971,6 +1994,7 @@ function wire(){
 
 })();
 </script>
+
 
 </body>
 </html>
