@@ -581,7 +581,18 @@ input[type="range"]::-moz-range-thumb{
         <div class="card-body">
 
           <div class="field">
-            <label for="panelMode">وش يظهر في البطاقة</label>
+            <label for="layout">شكل الستوري</label>
+            <select id="layout">
+              <option value="classic">٠١ · العمود الزجاجي</option>
+              <option value="pyramid">٠٥ · الهرم البطل</option>
+              <option value="poster">٠٦ · الملصق</option>
+              <option value="number">١٠ · الرقم الصريح</option>
+            </select>
+            <p class="hint" id="layoutHint">&mdash;</p>
+          </div>
+
+          <div class="field" id="panelModeWrap">
+            <label for="panelMode">وش يظهر في البطاقة <span class="mini">(للعمود الزجاجي)</span></label>
             <select id="panelMode">
               <option value="full">الهرم + المؤشرات + المعلومات</option>
               <option value="bars">المؤشرات + المعلومات</option>
@@ -707,7 +718,8 @@ input[type="range"]::-moz-range-thumb{
         <div class="card-body">
           <div class="field">
             <label for="scoreLabel">كلمة التقييم</label>
-            <input type="text" id="scoreLabel" value="الأداء" maxlength="14">
+            <input type="text" id="scoreLabel" value="تجربتي الشخصية" maxlength="22">
+            <p class="hint">تظهر جنب رقمك على الصورة.</p>
           </div>
           <div class="field">
             <label for="feeling">الاحساس</label>
@@ -847,10 +859,10 @@ const state = {
   longevity:0, sillage:0, community:0,
   mGender:"", mSeason:"", mTime:"",
   fromStore:false,
-  panelMode:"full", cardSide:"right", topGap:180,
+  panelMode:"full", cardSide:"right", topGap:180, layout:"classic",
   scores:Object.fromEntries(CRITERIA.map(c => [c.key, 8.5])),
   weights:Object.fromEntries(CRITERIA.map(c => [c.key, c.w])),
-  scoreLabel:"الأداء", feeling:"", note:"", handle:"3altayer.com",
+  scoreLabel:"تجربتي الشخصية", feeling:"", note:"", handle:"3altayer.com",
   snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:58
@@ -1391,31 +1403,369 @@ function drawGuides(){
   ctx.direction = "ltr";
 }
 
+/* ---------- shared pieces for the alternate layouts ---------- */
+
+// The head of every layout: day, brand, name, snapchat handle.
+function drawHead(right, y, opts){
+  const o = opts || {};
+  const align = o.align || "right";
+  ctx.textBaseline = "alphabetic";
+  if (state.dayOn && state.dayNum > 0){
+    ctx.font = '500 34px Tajawal, sans-serif';
+    ctx.direction = "rtl"; ctx.textAlign = align;
+    shadowOn(14, 0.72, 3); ctx.fillStyle = "rgba(255,255,255,.70)";
+    ctx.fillText("اليوم " + toAr(state.dayNum), right, y); shadowOff();
+    y += 54;
+  }
+  const brand = String(state.brand).trim();
+  if (brand){
+    ctx.font = '600 ' + (o.brandSize || 30) + 'px "Readex Pro", sans-serif';
+    ctx.letterSpacing = (o.brandSpace || "5px");
+    ctx.direction = "ltr"; ctx.textAlign = align;
+    shadowOn(14, 0.7, 3); ctx.fillStyle = o.brandFill || "rgba(255,255,255,.68)";
+    ctx.fillText(brand.toUpperCase(), right, y); shadowOff();
+    ctx.letterSpacing = "0px";
+    y += (o.brandGap || 56);
+  }
+  const name = String(state.pname).trim();
+  if (name){
+    let size = o.nameSize || 92;
+    const f = n => "600 " + n + 'px Caveat, "Segoe Script", cursive';
+    ctx.font = f(size);
+    const maxW = o.nameW || COL;
+    while (size > 44 && ctx.measureText(name).width > maxW){ size -= 2; ctx.font = f(size); }
+    ctx.direction = "ltr"; ctx.textAlign = align;
+    shadowOn(22, 0.8, 4); ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(name, right, y); shadowOff();
+    y += size * 0.40 + (o.nameGap || 34);
+  }
+  const snap = String(state.snap).trim();
+  if (state.snapOn && snap && align === "right"){
+    const fs = 29;
+    ctx.font = '600 ' + fs + 'px "Readex Pro", sans-serif';
+    ctx.letterSpacing = "1px"; ctx.direction = "ltr"; ctx.textAlign = "right";
+    shadowOn(14, 0.75, 3); ctx.fillStyle = "rgba(255,255,255,.92)";
+    ctx.fillText(snap, right, y);
+    const tw = ctx.measureText(snap).width;
+    ctx.letterSpacing = "0px"; shadowOff();
+    drawSnapMark(right - tw - 14 - 16, y - fs * 0.34, 32);
+    y += 52;
+  }
+  return y;
+}
+
+// The community block: source line, headline score, then the two bars.
+function drawCommunity(x, right, y, w){
+  const src = String(state.srcLabel).trim();
+  if (!(state.community > 0 || state.longevity > 0 || state.sillage > 0)) return y;
+  ctx.textBaseline = "alphabetic";
+  if (src){
+    ctx.font = '400 27px Tajawal, sans-serif';
+    ctx.direction = "rtl"; ctx.textAlign = "right";
+    shadowOn(12, 0.7, 2); ctx.fillStyle = "rgba(255,255,255,.58)";
+    ctx.fillText(src, right, y); shadowOff();
+    y += 46;
+  }
+  if (state.community > 0){
+    const hue = rampRGB(state.community / 5);
+    ctx.direction = "ltr"; ctx.textAlign = "right";
+    shadowOn(14, 0.7, 3);
+    ctx.font = '400 28px Tajawal, sans-serif';
+    ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.fillText("/ 5", right, y);
+    const sw = ctx.measureText("/ 5").width + 10;
+    ctx.font = '500 52px Tajawal, sans-serif';
+    ctx.fillStyle = rgbStr(hue); ctx.fillText(state.community.toFixed(1), right - sw, y);
+    shadowOff();
+    y += 54;
+  }
+  [["الثبات", state.longevity], ["الفوحان", state.sillage]].forEach(([lab, v]) => {
+    if (!(v > 0)) return;
+    const hue = rampRGB(v / 5);
+    shadowOn(12, 0.7, 2);
+    ctx.font = '400 30px Tajawal, sans-serif';
+    ctx.direction = "rtl"; ctx.textAlign = "right";
+    ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.fillText(lab, right, y);
+    ctx.font = '500 29px Tajawal, sans-serif';
+    ctx.direction = "ltr"; ctx.textAlign = "left";
+    ctx.fillStyle = rgbStr(hue); ctx.fillText(v.toFixed(1) + " / 5", x, y);
+    shadowOff();
+    const by = y + 14, bh = 9;
+    ctx.fillStyle = "rgba(255,255,255,.20)"; roundRect(x, by, w, bh, bh / 2); ctx.fill();
+    const fw = Math.max(bh, w * clamp(v / 5, 0, 1));
+    const g = ctx.createLinearGradient(right - fw, 0, right, 0);
+    g.addColorStop(0, rgbStr(hue.map(c => Math.round(c * 0.74))));
+    g.addColorStop(1, rgbStr(hue));
+    ctx.fillStyle = g; roundRect(right - fw, by, fw, bh, bh / 2); ctx.fill();
+    y += 62;
+  });
+  return y;
+}
+
+// "تجربتي الشخصية  8.66" — label then number, laid right-to-left.
+function drawMyScore(right, y, numSize, labSize){
+  const v = scoreOf();
+  const lab = (state.scoreLabel || "تجربتي الشخصية") + ":";
+  ctx.font = '400 ' + labSize + 'px Tajawal, sans-serif';
+  const lw = ctx.measureText(lab).width;
+  shadowOn(22, 0.82, 4);
+  ctx.direction = "rtl"; ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.fillText(lab, right, y);
+  ctx.font = '500 ' + numSize + 'px Tajawal, sans-serif';
+  ctx.direction = "ltr"; ctx.textAlign = "right";
+  ctx.fillStyle = "#FFFFFF"; ctx.fillText(v.toFixed(2), right - lw - 22, y);
+  shadowOff();
+  return v;
+}
+
+function allNotes(){
+  return PYRAMID.filter(t => splitNotes(state[t.key]).length);
+}
+
+/* ---------- 05 · the pyramid, with the community numbers under it ---------- */
+function layoutPyramid(){
+  ctx.fillStyle = "rgba(10,8,6," + clamp(0.42 + state.scrim / 100 * 0.42, 0, .88) + ")";
+  ctx.fillRect(0, 0, W, H);
+  const M2 = 84, right = W - M2;
+  let y = SAFE_TOP + Number(state.topGap) + 30;
+  y = drawHead(right, y, { nameSize:92, nameW:W - 200, nameGap:40 });
+
+  const tiers = allNotes();
+  const solo = tiers.length === 1;
+  tiers.forEach(t => {
+    const lab = solo ? "النوتات" : t.ar;
+    ctx.fillStyle = t.color; roundRect(right - 6, y - 34, 6, 54, 3); ctx.fill();
+    ctx.font = '500 32px Tajawal, sans-serif';
+    ctx.direction = "rtl"; ctx.textAlign = "right";
+    shadowOn(14, 0.7, 3); ctx.fillStyle = t.color; ctx.fillText(lab, right - 28, y); shadowOff();
+    y += 56;
+    ctx.font = '400 46px Tajawal, sans-serif';
+    shadowOn(18, 0.8, 3); ctx.fillStyle = "rgba(255,255,255,.96)";
+    wrapLines(splitNotes(state[t.key]).slice(0, 4).join("  ·  "),
+              '400 46px Tajawal, sans-serif', W - 190)
+      .forEach(l => { ctx.fillText(l, right, y); y += 60; });
+    shadowOff();
+    y += 28;
+  });
+
+  y += 6;
+  ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(M2, y); ctx.lineTo(right, y); ctx.stroke();
+  y += 56;
+
+  y = drawCommunity(M2, right, y, W - M2 * 2);
+
+  y += 8;
+  ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(M2, y); ctx.lineTo(right, y); ctx.stroke();
+  y += 78;
+
+  drawMyScore(right, y, 92, 44);
+  y += 34;
+  return drawNoteBox(y + 20);
+}
+
+/* ---------- 06 · the poster ---------- */
+function layoutPoster(){
+  ctx.fillStyle = "rgba(12,9,7," + clamp(0.30 + state.scrim / 100 * 0.42, 0, .82) + ")";
+  ctx.fillRect(0, 0, W, H);
+  const brand = String(state.brand).trim().toUpperCase();
+  if (brand){
+    ctx.save();
+    ctx.translate(96, H / 2); ctx.rotate(-Math.PI / 2);
+    ctx.direction = "ltr"; ctx.textAlign = "center";
+    let bs = 108;
+    ctx.font = '600 ' + bs + 'px "Readex Pro", sans-serif';
+    ctx.letterSpacing = "14px";
+    while (bs > 44 && ctx.measureText(brand).width > H - 260){
+      bs -= 4; ctx.font = '600 ' + bs + 'px "Readex Pro", sans-serif';
+    }
+    ctx.fillStyle = "rgba(255,255,255,.10)";
+    ctx.fillText(brand, 0, 0);
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+  }
+  const M2 = 84, right = W - M2;
+  let y = SAFE_TOP + Number(state.topGap) + 70;
+
+  const name = String(state.pname).trim();
+  if (name){
+    let ns = 132;
+    const f = n => "600 " + n + 'px Caveat, "Segoe Script", cursive';
+    ctx.font = f(ns);
+    while (ns > 56 && ctx.measureText(name).width > W - 300){ ns -= 4; ctx.font = f(ns); }
+    ctx.direction = "ltr"; ctx.textAlign = "right";
+    shadowOn(24, 0.78, 5); ctx.fillStyle = "#FFFFFF";
+    wrapLines(name, f(ns), W - 300).forEach(l => { ctx.fillText(l, right, y); y += ns * 0.95; });
+    shadowOff();
+  }
+  y += 6;
+  ctx.fillStyle = "#E8B451"; roundRect(right - 190, y, 190, 7, 4); ctx.fill();
+  y += 90;
+
+  const snap = String(state.snap).trim();
+  if (state.snapOn && snap){
+    const fs = 29;
+    ctx.font = '600 ' + fs + 'px "Readex Pro", sans-serif';
+    ctx.letterSpacing = "1px"; ctx.direction = "ltr"; ctx.textAlign = "right";
+    shadowOn(14, 0.75, 3); ctx.fillStyle = "rgba(255,255,255,.9)";
+    ctx.fillText(snap, right, y);
+    const tw = ctx.measureText(snap).width;
+    ctx.letterSpacing = "0px"; shadowOff();
+    drawSnapMark(right - tw - 14 - 16, y - fs * 0.34, 32);
+    y += 96;
+  }
+
+  const v = scoreOf();
+  ctx.direction = "ltr"; ctx.textAlign = "right";
+  shadowOn(22, 0.7, 5); ctx.font = '500 160px Tajawal, sans-serif';
+  ctx.fillStyle = "#E8B451"; ctx.fillText(v.toFixed(2), right, y + 40); shadowOff();
+  ctx.font = '400 32px Tajawal, sans-serif';
+  ctx.direction = "rtl"; ctx.textAlign = "right";
+  shadowOn(12, 0.7, 2); ctx.fillStyle = "rgba(255,255,255,.62)";
+  ctx.fillText(state.scoreLabel || "تجربتي الشخصية", right, y + 92); shadowOff();
+  y += 168;
+
+  const feel = String(state.feeling).trim();
+  if (feel){
+    ctx.font = '400 42px Tajawal, sans-serif';
+    ctx.direction = "rtl"; ctx.textAlign = "right";
+    shadowOn(16, 0.78, 3); ctx.fillStyle = "rgba(255,255,255,.96)";
+    wrapLines(feel, '400 42px Tajawal, sans-serif', W - 200)
+      .forEach(l => { ctx.fillText(l, right, y); y += 56; });
+    shadowOff();
+    y += 18;
+  }
+
+  const stats = [["الثبات", state.longevity], ["الفوحان", state.sillage], ["المجتمع", state.community]]
+    .filter(x => x[1] > 0);
+  if (stats.length){
+    const bw = 220, gap = 80;
+    stats.forEach(([lab, val], i) => {
+      const x = M2 + i * (bw + gap), hue = rampRGB(val / 5);
+      ctx.direction = "ltr"; ctx.textAlign = "left";
+      shadowOn(12, 0.7, 2);
+      ctx.font = '500 54px Tajawal, sans-serif'; ctx.fillStyle = rgbStr(hue);
+      ctx.fillText(val.toFixed(1), x, y + 46);
+      ctx.font = '400 24px Tajawal, sans-serif'; ctx.fillStyle = "rgba(255,255,255,.58)";
+      ctx.fillText(lab, x, y + 80);
+      shadowOff();
+      ctx.fillStyle = "rgba(255,255,255,.20)"; roundRect(x, y + 96, bw, 7, 4); ctx.fill();
+      ctx.fillStyle = rgbStr(hue); roundRect(x, y + 96, bw * clamp(val / 5, 0, 1), 7, 4); ctx.fill();
+    });
+    y += 118;
+  }
+  return drawNoteBox(y + 24);
+}
+
+/* ---------- 10 · the number ---------- */
+function layoutNumber(){
+  ctx.fillStyle = "rgba(8,6,5," + clamp(0.34 + state.scrim / 100 * 0.44, 0, .84) + ")";
+  ctx.fillRect(0, 0, W, H);
+  const v = scoreOf(), hue = rampRGB(v / 10);
+  const cy = SAFE_TOP + Number(state.topGap) + 380;
+  ctx.direction = "ltr"; ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  shadowOn(40, 0.6, 12);
+  ctx.font = '500 400px Tajawal, sans-serif'; ctx.fillStyle = rgbStr(hue);
+  ctx.fillText(v.toFixed(1), W / 2, cy);
+  shadowOff();
+  ctx.font = '400 38px Tajawal, sans-serif';
+  ctx.direction = "rtl"; ctx.textAlign = "center";
+  shadowOn(14, 0.7, 3); ctx.fillStyle = "rgba(255,255,255,.6)";
+  ctx.fillText((state.scoreLabel || "تجربتي الشخصية") + " · من ١٠", W / 2, cy + 62);
+  shadowOff();
+  let y = cy + 168;
+
+  const brand = String(state.brand).trim();
+  if (brand){
+    ctx.font = '600 30px "Readex Pro", sans-serif';
+    ctx.letterSpacing = "7px"; ctx.direction = "ltr"; ctx.textAlign = "center";
+    shadowOn(14, 0.7, 3); ctx.fillStyle = "rgba(255,255,255,.7)";
+    ctx.fillText(brand.toUpperCase(), W / 2, y); shadowOff();
+    ctx.letterSpacing = "0px"; y += 92;
+  }
+  const name = String(state.pname).trim();
+  if (name){
+    let ns = 104;
+    const f = n => "600 " + n + 'px Caveat, "Segoe Script", cursive';
+    ctx.font = f(ns);
+    while (ns > 48 && ctx.measureText(name).width > W - 180){ ns -= 3; ctx.font = f(ns); }
+    ctx.direction = "ltr"; ctx.textAlign = "center";
+    shadowOn(22, 0.8, 4); ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(name, W / 2, y); shadowOff();
+    y += ns * 0.42 + 54;
+  }
+  const stats = [["ثبات", state.longevity], ["فوحان", state.sillage], ["مجتمع", state.community]]
+    .filter(x => x[1] > 0);
+  if (stats.length){
+    ctx.font = '400 38px Tajawal, sans-serif';
+    ctx.direction = "rtl"; ctx.textAlign = "center";
+    shadowOn(14, 0.75, 3); ctx.fillStyle = "rgba(255,255,255,.86)";
+    ctx.fillText(stats.map(([l, v2]) => l + " " + v2.toFixed(1)).join("   ·   "), W / 2, y);
+    shadowOff();
+    y += 56;
+  }
+  const feel = String(state.feeling).trim();
+  if (feel){
+    ctx.font = '400 40px Tajawal, sans-serif';
+    ctx.direction = "rtl"; ctx.textAlign = "center";
+    shadowOn(16, 0.78, 3); ctx.fillStyle = "rgba(255,255,255,.9)";
+    wrapLines(feel, '400 40px Tajawal, sans-serif', W - 200)
+      .forEach(l => { ctx.fillText(l, W / 2, y); y += 54; });
+    shadowOff();
+    y += 10;
+  }
+  const snap = String(state.snap).trim();
+  if (state.snapOn && snap){
+    const fs = 29;
+    ctx.font = '600 ' + fs + 'px "Readex Pro", sans-serif';
+    ctx.letterSpacing = "1px"; ctx.direction = "ltr"; ctx.textAlign = "center";
+    shadowOn(14, 0.75, 3); ctx.fillStyle = "rgba(255,255,255,.9)";
+    ctx.fillText(snap, W / 2 + 24, y + 22);
+    const tw = ctx.measureText(snap).width;
+    ctx.letterSpacing = "0px"; shadowOff();
+    drawSnapMark(W / 2 + 24 - tw - 14 - 16, y + 22 - fs * 0.34, 32);
+    y += 62;
+  }
+  return drawNoteBox(y + 16);
+}
+
+/* ---------- 01 · the glass column ---------- */
+function layoutClassic(){
+  drawScrims();
+  const startY = SAFE_TOP + Number(state.topGap) + 44;
+  ctx.save(); ctx.globalAlpha = 0;          // dry pass: measure the text block
+  const textEnd = drawColumn(startY);
+  ctx.restore();
+  drawTextPlate(startY, textEnd);
+  const end = drawColumn(startY);
+  const panel = layoutPanel();
+  let bottom = end;
+  if (panel){ drawPanel(end, panel); bottom = end + panel.h + 26; }
+  return drawNoteBox(bottom);
+}
+
+const LAYOUTS = {
+  classic:{ name:"العمود الزجاجي", draw:layoutClassic,
+            hint:"كل المعلومات في بطاقة زجاجية. الافتراضي اليومي." },
+  pyramid:{ name:"الهرم البطل",    draw:layoutPyramid,
+            hint:"النوتات بخط كبير والصورة تنعتّم خلفها — ما تحتاج صورة مثالية." },
+  poster: { name:"الملصق",         draw:layoutPoster,
+            hint:"اسم البراند عمودي عملاق. يبي صورة بيئية تبيّن الخلفية." },
+  number: { name:"الرقم الصريح",   draw:layoutNumber,
+            hint:"الرقم يملأ الشاشة. لعطر تقييمه صادم — عالي أو واطي." }
+};
+
 let lastBottom = 0;
 function render(withGuides){
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, W, H);
   shadowOff();
-
   drawBackground();
-  drawScrims();
-
-  const startY = SAFE_TOP + Number(state.topGap) + 44;
-
-  ctx.save(); ctx.globalAlpha = 0;          // dry pass: measure the text block
-  const textEnd = drawColumn(startY);
-  ctx.restore();
-  drawTextPlate(startY, textEnd);
-
-  const end = drawColumn(startY);
-  const layout = layoutPanel();
-  let bottom = end;
-  if (layout){ drawPanel(end, layout); bottom = end + layout.h + 26; }
-  bottom = drawNoteBox(bottom);
-
+  const L = LAYOUTS[state.layout] || LAYOUTS.classic;
+  const bottom = L.draw();
   drawHandle();
   if (withGuides) drawGuides();
-
   lastBottom = bottom;
   return bottom;
 }
@@ -1652,13 +2002,22 @@ function updateScore(){
   $("#scoreSub").textContent = "من ١٠ — متوسط موزون لـ" + toAr(CRITERIA.length) + " معايير";
 }
 
+// The glass panel's content switch only applies to the classic layout.
+function syncLayoutUI(){
+  const L = LAYOUTS[state.layout] || LAYOUTS.classic;
+  const h = $("#layoutHint"); if (h) h.textContent = L.hint;
+  const w = $("#panelModeWrap"); if (w) w.hidden = state.layout !== "classic";
+}
+
 function updateSummaries(){
   $("#photoNote").textContent = photoImg ? "جاهزة ✓" : "ما فيه صورة";
   $("#perfNote").textContent = [state.brand, state.pname].filter(x => String(x).trim()).join(" · ") || "—";
   const bits = [];
   if (splitNotes(state.nTop).length || splitNotes(state.nHeart).length || splitNotes(state.nBase).length) bits.push("هرم");
   if (state.longevity > 0 || state.sillage > 0) bits.push("مؤشرات");
-  $("#cardNote").textContent = state.panelMode === "off" ? "مخفية" : (bits.join(" · ") || "—");
+  const LN = (LAYOUTS[state.layout] || LAYOUTS.classic).name;
+  $("#cardNote").textContent = LN + (state.layout === "classic" && state.panelMode === "off"
+    ? " · بدون بطاقة" : (bits.length ? " · " + bits.join(" · ") : ""));
   $("#scoreNote").textContent = scoreOf().toFixed(2);
   $("#archNote").textContent = toAr(archive.length) + " عطر";
   $("#srcTag").hidden = !state.fromStore;
@@ -1674,6 +2033,8 @@ function syncControls(){
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
   set("longevity", state.longevity); set("sillage", state.sillage);
   set("panelMode", state.panelMode); set("cardSide", state.cardSide);
+  set("layout", state.layout);
+  syncLayoutUI();
   set("topGap", String(state.topGap));
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
@@ -1904,6 +2265,7 @@ function wire(){
     .forEach(k => bind(k, k));
   bindSelect("snapOn", "snapOn", v => v === "1");
   bind("dayNum", "dayNum", v => Math.max(0, parseInt(v, 10) || 0));
+  bindSelect("layout", "layout", v => { setTimeout(syncLayoutUI, 0); return v; });
   bindSelect("panelMode", "panelMode");
   bindSelect("cardSide", "cardSide");
   bindSelect("topGap", "topGap", v => parseInt(v, 10) || 0);
