@@ -676,6 +676,33 @@ input[type="range"]::-moz-range-thumb{
               </select>
             </div>
           </div>
+
+          <hr class="divider">
+          <p class="hint">حرّك التصميم كامل — من «اليوم ١» فوق لين آخر سطر بالبطاقة — والصورة تثبت مكانها.</p>
+          <div class="row">
+            <div class="slider-row">
+              <span class="lbl">التصميم يمين ويسار</span><span class="slider-val" id="blockXVal">٠</span>
+              <input type="range" id="blockX" min="-320" max="320" step="2" value="0">
+            </div>
+            <div class="slider-row">
+              <span class="lbl">التصميم فوق وتحت</span><span class="slider-val" id="blockYVal">٠</span>
+              <input type="range" id="blockY" min="-320" max="320" step="2" value="0">
+            </div>
+          </div>
+          <p class="hint">والملاحظة الحمراء تتحرّك لحالها فوق هذا.</p>
+          <div class="row">
+            <div class="slider-row">
+              <span class="lbl">الملاحظة يمين ويسار</span><span class="slider-val" id="noteXVal">٠</span>
+              <input type="range" id="noteX" min="-320" max="320" step="2" value="0">
+            </div>
+            <div class="slider-row">
+              <span class="lbl">الملاحظة فوق وتحت</span><span class="slider-val" id="noteYVal">٠</span>
+              <input type="range" id="noteY" min="-520" max="520" step="2" value="0">
+            </div>
+          </div>
+          <button class="icon-btn" type="button" id="resetPos" style="align-self:flex-start">
+            رجّع الأماكن للأصل
+          </button>
         </div>
       </details>
 
@@ -819,6 +846,7 @@ const M = 72;                 // page margin
 const SAFE_TOP = 132;         // Snapchat header
 const SAFE_BOTTOM = 210;      // Snapchat reply bar
 const COL = 700;              // the composition column
+const NOTE_RED = "#FF4D4D";   // the note, and only the note
 
 const LS_STATE = "3altayer.mood2.state.v1";
 const LS_ARCH  = "3altayer.mood2.archive.v1";
@@ -868,7 +896,8 @@ const state = {
   scoreLabel:"التقييم", feeling:"", note:"", handle:"3altayer.com",
   snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
-  zoom:1, pan:50, panX:50, scrim:58
+  zoom:1, pan:50, panX:50, scrim:58,
+  blockX:0, blockY:0, noteX:0, noteY:0
 };
 
 let photoImg = null;
@@ -1370,21 +1399,39 @@ function drawColumn(startY){
   return y;
 }
 
+// The note is the only red thing on the story, and the only block the
+// layouts do not own: they just report where it would land (noteAnchor)
+// and render() places it, so it can be nudged on its own.
+let noteTop = null;
+function noteAnchor(top){ noteTop = top; return top; }
+
 function drawNoteBox(top){
   const txt = String(state.note).trim();
   if (!txt) return top;
-  const font = '400 36px Tajawal, sans-serif';
-  const padX = 28, padY = 22, lh = 52;
-  const lines = wrapLines(txt, font, COL - padX * 2);
-  const h = lines.length * lh + padY * 2;
-  const x = colLeft();
-  ctx.fillStyle = "rgba(10,8,6,.58)";
+  const font = '400 31px Tajawal, sans-serif';
+  const padX = 28, padY = 22, lh = 42, labelH = 38, indent = 26;
+  const lines = wrapLines(txt, font, COL - padX * 2 - indent);
+  const h = labelH + lines.length * lh + padY * 2;
+  const x = colLeft(), right = x + COL - padX;
+
+  ctx.fillStyle = "rgba(10,8,6,.68)";
   roundRect(x, top, COL, h, 20); ctx.fill();
-  ctx.strokeStyle = "rgba(255,140,110,.30)"; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(255,77,77,.38)"; ctx.lineWidth = 1.5;
   roundRect(x, top, COL, h, 20); ctx.stroke();
-  ctx.font = font; ctx.fillStyle = "#FF9C82";
+
+  // red stays red over a bright photo only with a shadow under it
+  shadowOn(14, 0.75, 2);
+
+  // label — same bullet-and-word rhythm as the pyramid tiers above it
+  ctx.fillStyle = NOTE_RED;
+  ctx.beginPath(); ctx.arc(right - 7, top + padY + 14, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.font = '500 29px Tajawal, sans-serif';
   ctx.direction = "rtl"; ctx.textAlign = "right";
-  lines.forEach((l, i) => ctx.fillText(l, x + COL - padX, top + padY + lh * i + 38));
+  ctx.fillText("ملاحظة", right - indent, top + padY + 24);
+
+  ctx.font = font; ctx.fillStyle = NOTE_RED;
+  lines.forEach((l, k) => ctx.fillText(l, right - indent, top + padY + labelH + lh * k + 30));
+  shadowOff();
   ctx.direction = "ltr";
   return top + h;
 }
@@ -1575,7 +1622,7 @@ function layoutPyramid(){
   y += 56;
 
   y = drawCommunity(M2, right, y, W - M2 * 2);
-  return drawNoteBox(y + 20);
+  return noteAnchor(y + 20);
 }
 
 /* ---------- 06 · the poster ---------- */
@@ -1668,7 +1715,7 @@ function layoutPoster(){
     });
     y += 118;
   }
-  return drawNoteBox(y + 24);
+  return noteAnchor(y + 24);
 }
 
 /* ---------- 10 · the number ---------- */
@@ -1741,7 +1788,7 @@ function layoutNumber(){
     drawSnapMark(W / 2 + 24 - tw - 14 - 16, y + 22 - fs * 0.34, 32);
     y += 62;
   }
-  return drawNoteBox(y + 16);
+  return noteAnchor(y + 16);
 }
 
 /* ---------- 01 · the glass column ---------- */
@@ -1756,7 +1803,7 @@ function layoutClassic(){
   const panel = layoutPanel();
   let bottom = end;
   if (panel){ drawPanel(end, panel); bottom = end + panel.h + 26; }
-  return drawNoteBox(bottom);
+  return noteAnchor(bottom);
 }
 
 const LAYOUTS = {
@@ -1776,8 +1823,28 @@ function render(withGuides){
   ctx.clearRect(0, 0, W, H);
   shadowOff();
   drawBackground();
+
   const L = LAYOUTS[state.layout] || LAYOUTS.classic;
-  const bottom = L.draw();
+  const bx = Number(state.blockX) || 0, by = Number(state.blockY) || 0;
+
+  // the whole design — «اليوم ١» down to the last line of the card — moves
+  // as one piece over the photo, which stays put
+  noteTop = null;
+  ctx.save();
+  ctx.translate(bx, by);
+  const bodyBottom = L.draw();
+  ctx.restore();
+
+  // the note rides along with it, plus its own nudge
+  let bottom = bodyBottom + by;
+  if (noteTop !== null){
+    const nx = Number(state.noteX) || 0, ny = Number(state.noteY) || 0;
+    ctx.save();
+    ctx.translate(bx + nx, by + ny);
+    bottom = Math.max(bottom, drawNoteBox(noteTop) + by + ny);
+    ctx.restore();
+  }
+
   drawHandle();
   if (withGuides) drawGuides();
   lastBottom = bottom;
@@ -2042,7 +2109,8 @@ function syncControls(){
   const set = (id, v) => { const el = $("#" + id); if (el) el.value = v; };
   ["brand","pname","perfumer","family","year","nTop","nHeart","nBase",
    "scoreLabel","feeling","note","handle","dayNum",
-   "zoom","pan","panX","scrim"].forEach(k => set(k, state[k]));
+   "zoom","pan","panX","scrim",
+   "blockX","blockY","noteX","noteY"].forEach(k => set(k, state[k]));
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
@@ -2059,6 +2127,12 @@ function updateRangeLabels(){
   $("#panVal").textContent   = toAr(Math.round(state.pan)) + "٪";
   $("#panXVal").textContent  = toAr(Math.round(state.panX)) + "٪";
   $("#scrimVal").textContent = toAr(Math.round(state.scrim)) + "٪";
+  const px = v => { const n = Math.round(Number(v) || 0);
+                    return (n > 0 ? "+" : n < 0 ? "−" : "") + toAr(Math.abs(n)); };
+  $("#blockXVal").textContent = px(state.blockX);
+  $("#blockYVal").textContent = px(state.blockY);
+  $("#noteXVal").textContent  = px(state.noteX);
+  $("#noteYVal").textContent  = px(state.noteY);
   const lv = $("#longVal"), sv = $("#silVal");
   lv.textContent = Number(state.longevity).toFixed(1);
   sv.textContent = Number(state.sillage).toFixed(1);
@@ -2290,11 +2364,18 @@ function wire(){
   $("#pname").addEventListener("input", refreshDup);
 
   [["zoom","zoom"],["pan","pan"],["panX","panX"],["scrim","scrim"],
+   ["blockX","blockX"],["blockY","blockY"],["noteX","noteX"],["noteY","noteY"],
    ["longevity","longevity"],["sillage","sillage"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
       state[key] = parseFloat(el.value); updateRangeLabels(); onChange();
     });
+  });
+
+  $("#resetPos").addEventListener("click", () => {
+    state.blockX = state.blockY = state.noteX = state.noteY = 0;
+    ["blockX","blockY","noteX","noteY"].forEach(k => { $("#" + k).value = 0; });
+    updateRangeLabels(); onChange();
   });
 
   $("#photoIn").addEventListener("change", async e => {
