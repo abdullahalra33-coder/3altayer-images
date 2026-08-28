@@ -513,7 +513,7 @@ input[type="range"]::-moz-range-thumb{
             </div>
             <div class="field">
               <label for="pname">اسم العطر</label>
-              <input type="text" id="pname" dir="ltr" placeholder="Eau Sauvage" autocomplete="off">
+              <textarea id="pname" dir="ltr" rows="2" placeholder="Eau Sauvage" autocomplete="off"></textarea>
             </div>
           </div>
           <div class="row-3">
@@ -608,17 +608,18 @@ input[type="range"]::-moz-range-thumb{
 
           <div class="field">
             <span class="lbl">الهرم العطري</span>
-            <p class="hint">افصل بين النوتات بـ <code>·</code> أو فاصلة. تقدر تكتب عربي أو إنجليزي.</p>
+            <p class="hint">افصل بين النوتات بـ <code>·</code> أو فاصلة. تقدر تكتب عربي أو إنجليزي.
+              واضغط Enter وين ما تبي السطر ينكسر.</p>
           </div>
           <div class="tier"><span class="pip" style="background:#E8C86A"></span>
             <div class="field"><label for="nTop">المقدمة</label>
-              <input type="text" id="nTop" placeholder="ليمون · برغموت · ريحان"></div></div>
+              <textarea id="nTop" rows="2" placeholder="ليمون · برغموت · ريحان"></textarea></div></div>
           <div class="tier"><span class="pip" style="background:#D98A9A"></span>
             <div class="field"><label for="nHeart">القلب</label>
-              <input type="text" id="nHeart" placeholder="ياسمين · ورد · باتشولي"></div></div>
+              <textarea id="nHeart" rows="2" placeholder="ياسمين · ورد · باتشولي"></textarea></div></div>
           <div class="tier"><span class="pip" style="background:#8A6244"></span>
             <div class="field"><label for="nBase">القاعدة</label>
-              <input type="text" id="nBase" placeholder="مسك · عنبر · طحلب البلوط"></div></div>
+              <textarea id="nBase" rows="2" placeholder="مسك · عنبر · طحلب البلوط"></textarea></div></div>
 
           <hr class="divider">
 
@@ -674,6 +675,17 @@ input[type="range"]::-moz-range-thumb{
                 <option value="300">كبير — ستكر عريض</option>
                 <option value="50">صغير — ما فيه ستكر</option>
               </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label for="plate">تعتيم خلف النص</label>
+              <select id="plate">
+                <option value="1">نعم — يضمن النص يبان</option>
+                <option value="0">لا — الصورة نظيفة</option>
+              </select>
+              <p class="hint">لو شلته، خفّض «قوة التعتيم» في قسم الصورة لصفر عشان تختفي كل الظلال.</p>
             </div>
           </div>
 
@@ -755,12 +767,15 @@ input[type="range"]::-moz-range-thumb{
             <label for="feeling">الاحساس</label>
             <textarea id="feeling" rows="2"
               placeholder="واحد داخل العرس وهو مو معزوم"></textarea>
-            <p class="hint">اكتبه عامي ويضحك — شخصية أو موقف، مو وصف عطر. أقصر = أقوى.</p>
+            <p class="hint">اكتبه عامي ويضحك — شخصية أو موقف، مو وصف عطر. أقصر = أقوى.
+              اضغط Enter وين ما تبي ينزل سطر جديد.</p>
             <div class="chips" id="feelIdeas" aria-label="أفكار للاحساس"></div>
           </div>
           <div class="field">
             <label for="note">ملاحظة (اختياري)</label>
             <textarea id="note" rows="3" placeholder="روسيندو ماتيو ما صنع الا عطرين حلوين رقم ٥ و ٧"></textarea>
+            <p class="hint">تطلع بالأحمر بدون مربع. اضغط Enter وين ما تبي السطر ينكسر —
+              وإلا الأداة تكسره لك على عرض العمود.</p>
           </div>
           <hr class="divider">
           <div class="row">
@@ -897,7 +912,7 @@ const state = {
   snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:58,
-  blockX:0, blockY:0, noteX:0, noteY:0
+  blockX:0, blockY:0, noteX:0, noteY:0, plate:true
 };
 
 let photoImg = null;
@@ -944,7 +959,7 @@ function slug(s){
     .replace(/[^a-z0-9؀-ۿ]+/g, "-").replace(/^-+|-+$/g, "") || "story";
 }
 function splitNotes(t){
-  return String(t || "").split(/[·,،|]/).map(x => x.trim()).filter(Boolean);
+  return String(t || "").split(/[·,،|\n]/).map(x => x.trim()).filter(Boolean);
 }
 
 // A cross-origin image taints the canvas and makes export throw. Probe with a
@@ -1029,12 +1044,17 @@ function shadowOff(){
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
 }
+// A line break the author typed is a line break on the story. The wrappers
+// only fill in the breaks he did not ask for, and an empty line stays empty.
+function paras(text){
+  return String(text).replace(/^\n+|\n+$/g, "").split("\n").map(t => t.trim());
+}
 function wrapLines(text, font, maxW){
   ctx.font = font;
   const out = [];
-  for (const para of String(text).split(/\n/)){
-    const words = para.trim().split(/\s+/).filter(Boolean);
-    if (!words.length) continue;
+  for (const para of paras(text)){
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length){ out.push(""); continue; }
     let line = words[0];
     for (let i = 1; i < words.length; i++){
       const t = line + " " + words[i];
@@ -1047,15 +1067,18 @@ function wrapLines(text, font, maxW){
 }
 function wrapVar(text, font, firstW, restW){
   ctx.font = font;
-  const words = String(text).trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
-  const out = []; let line = words[0], limit = firstW;
-  for (let i = 1; i < words.length; i++){
-    const t = line + " " + words[i];
-    if (ctx.measureText(t).width <= limit) line = t;
-    else { out.push(line); line = words[i]; limit = restW; }
+  const out = [];
+  for (const para of paras(text)){
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length){ out.push(""); continue; }
+    let line = words[0], limit = out.length ? restW : firstW;
+    for (let i = 1; i < words.length; i++){
+      const t = line + " " + words[i];
+      if (ctx.measureText(t).width <= limit) line = t;
+      else { out.push(line); line = words[i]; limit = restW; }
+    }
+    out.push(line);
   }
-  out.push(line);
   return out;
 }
 
@@ -1142,6 +1165,7 @@ function drawScrims(){
   ctx.fillStyle = g; ctx.fillRect(0, H * 0.66, W, H * 0.34);
 }
 function drawTextPlate(y0, y1){
+  if (!state.plate) return;
   const a = clamp(state.scrim / 100, 0, 0.9) * 0.82;
   if (a <= 0.03 || y1 - y0 < 40) return;
   const top = clamp(y0 - 110, 0, H), bot = clamp(y1 + 60, 0, H);
@@ -1173,9 +1197,12 @@ function layoutPanel(){
       ops.push({ k:"tierLabel", y:h, text:solo ? "النوتات" : t.ar,
                  color:solo ? "#E8C86A" : t.color });
       h += 37;
-      wrapLines(splitNotes(state[t.key]).join("  ·  "),
-                '400 31px Tajawal, sans-serif', innerW - indent)
-        .forEach(line => { ops.push({ k:"tierNote", y:h, text:line, indent }); h += 40; });
+      paras(state[t.key]).forEach(seg => {
+        const txt = splitNotes(seg).join("  ·  ");
+        if (!txt) return;
+        wrapLines(txt, '400 31px Tajawal, sans-serif', innerW - indent)
+          .forEach(line => { ops.push({ k:"tierNote", y:h, text:line, indent }); h += 40; });
+      });
       if (i < tiers.length - 1) h += 10;
     });
   }
@@ -1312,18 +1339,23 @@ function drawColumn(startY){
     y += 56;
   }
 
-  const name = String(state.pname).trim();
-  if (name){
+  const nameLines = paras(state.pname).filter(Boolean);
+  if (nameLines.length){
     let size = 92;
-    const f = s => "600 " + s + 'px Caveat, "Segoe Script", cursive';
+    const f = z => "600 " + z + 'px Caveat, "Segoe Script", cursive';
+    const widest = () => Math.max.apply(null, nameLines.map(l => ctx.measureText(l).width));
     ctx.font = f(size);
-    while (size > 44 && ctx.measureText(name).width > COL){ size -= 2; ctx.font = f(size); }
+    while (size > 44 && widest() > COL){ size -= 2; ctx.font = f(size); }
+    const step = size * 0.92;
+    // Caveat's ascenders climb ~0.75em over the baseline; at full size they
+    // reach into the brand line above, so the gap grows with the type
+    y += Math.max(0, size * 0.75 - 48);
     ctx.direction = "ltr"; ctx.textAlign = "right";
     shadowOn(22, 0.8, 4);
     ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(name, right, y);
+    nameLines.forEach((l, i) => ctx.fillText(l, right, y + i * step));
     shadowOff();
-    y += size * 0.40 + 34;
+    y += (nameLines.length - 1) * step + size * 0.40 + 34;
   }
 
   // snapchat handle, sitting with the name it belongs to
@@ -1409,31 +1441,29 @@ function drawNoteBox(top){
   const txt = String(state.note).trim();
   if (!txt) return top;
   const font = '400 31px Tajawal, sans-serif';
-  const padX = 28, padY = 22, lh = 42, labelH = 38, indent = 26;
-  const lines = wrapLines(txt, font, COL - padX * 2 - indent);
-  const h = labelH + lines.length * lh + padY * 2;
-  const x = colLeft(), right = x + COL - padX;
+  const lh = 42, labelH = 38, indent = 26;
+  const right = colRight();
+  const lines = wrapLines(txt, font, COL - indent);
 
-  ctx.fillStyle = "rgba(10,8,6,.68)";
-  roundRect(x, top, COL, h, 20); ctx.fill();
-  ctx.strokeStyle = "rgba(255,77,77,.38)"; ctx.lineWidth = 1.5;
-  roundRect(x, top, COL, h, 20); ctx.stroke();
-
-  // red stays red over a bright photo only with a shadow under it
-  shadowOn(14, 0.75, 2);
-
-  // label — same bullet-and-word rhythm as the pyramid tiers above it
-  ctx.fillStyle = NOTE_RED;
-  ctx.beginPath(); ctx.arc(right - 7, top + padY + 14, 7, 0, Math.PI * 2); ctx.fill();
+  // no plate, so each glyph carries its own dark halo — red is the first
+  // colour to disappear against a bright photo
+  const halo = (t, tx, ty) => {
+    ctx.strokeStyle = "rgba(0,0,0,.62)"; ctx.lineWidth = 6; ctx.lineJoin = "round";
+    ctx.strokeText(t, tx, ty);
+    ctx.fillStyle = NOTE_RED; ctx.fillText(t, tx, ty);
+  };
+  shadowOn(14, 0.8, 3);
+  ctx.beginPath(); ctx.arc(right - 7, top + 14, 7, 0, Math.PI * 2);
+  ctx.fillStyle = NOTE_RED; ctx.fill();
   ctx.font = '500 29px Tajawal, sans-serif';
   ctx.direction = "rtl"; ctx.textAlign = "right";
-  ctx.fillText("ملاحظة", right - indent, top + padY + 24);
+  halo("ملاحظة", right - indent, top + 24);
 
-  ctx.font = font; ctx.fillStyle = NOTE_RED;
-  lines.forEach((l, k) => ctx.fillText(l, right - indent, top + padY + labelH + lh * k + 30));
+  ctx.font = font;
+  lines.forEach((l, k) => halo(l, right - indent, top + labelH + lh * k + 30));
   shadowOff();
   ctx.direction = "ltr";
-  return top + h;
+  return top + labelH + lines.length * lh;
 }
 
 function drawHandle(){
@@ -1585,7 +1615,7 @@ function allNotes(){
 
 /* ---------- 05 · the pyramid, with the community numbers under it ---------- */
 function layoutPyramid(){
-  ctx.fillStyle = "rgba(10,8,6," + clamp(0.42 + state.scrim / 100 * 0.42, 0, .88) + ")";
+  ctx.fillStyle = "rgba(10,8,6," + clamp((state.plate ? 0.42 : 0) + state.scrim / 100 * 0.42, 0, .88) + ")";
   ctx.fillRect(0, 0, W, H);
   const M2 = 84, right = W - M2;
   let y = SAFE_TOP + Number(state.topGap) + 30;
@@ -1627,7 +1657,7 @@ function layoutPyramid(){
 
 /* ---------- 06 · the poster ---------- */
 function layoutPoster(){
-  ctx.fillStyle = "rgba(12,9,7," + clamp(0.30 + state.scrim / 100 * 0.42, 0, .82) + ")";
+  ctx.fillStyle = "rgba(12,9,7," + clamp((state.plate ? 0.30 : 0) + state.scrim / 100 * 0.42, 0, .82) + ")";
   ctx.fillRect(0, 0, W, H);
   const brand = String(state.brand).trim().toUpperCase();
   if (brand){
@@ -1720,7 +1750,7 @@ function layoutPoster(){
 
 /* ---------- 10 · the number ---------- */
 function layoutNumber(){
-  ctx.fillStyle = "rgba(8,6,5," + clamp(0.34 + state.scrim / 100 * 0.44, 0, .84) + ")";
+  ctx.fillStyle = "rgba(8,6,5," + clamp((state.plate ? 0.34 : 0) + state.scrim / 100 * 0.44, 0, .84) + ")";
   ctx.fillRect(0, 0, W, H);
   const v = scoreOf(), hue = rampRGB(v / 10);
   const cy = SAFE_TOP + Number(state.topGap) + 380;
@@ -2119,6 +2149,7 @@ function syncControls(){
   set("layout", state.layout);
   syncLayoutUI();
   set("topGap", String(state.topGap));
+  const pl = $("#plate"); if (pl) pl.value = state.plate ? "1" : "0";
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
 }
@@ -2359,6 +2390,7 @@ function wire(){
   bindSelect("cardSide", "cardSide");
   bindSelect("topGap", "topGap", v => parseInt(v, 10) || 0);
   bindSelect("dayOn", "dayOn", v => v === "1");
+  bindSelect("plate", "plate", v => v === "1");
 
   $("#brand").addEventListener("input", refreshDup);
   $("#pname").addEventListener("input", refreshDup);
