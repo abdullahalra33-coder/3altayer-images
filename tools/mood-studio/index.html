@@ -680,12 +680,17 @@ input[type="range"]::-moz-range-thumb{
 
           <div class="row">
             <div class="field">
-              <label for="plate">تعتيم خلف النص</label>
-              <select id="plate">
-                <option value="1">نعم — يضمن النص يبان</option>
-                <option value="0">لا — الصورة نظيفة</option>
+              <label for="shade">تعتيم الخلفية</label>
+              <select id="shade">
+                <option value="0">بدون — الصورة نظيفة</option>
+                <option value="1">مع تعتيم — يضمن النص يبان</option>
               </select>
-              <p class="hint">لو شلته، خفّض «قوة التعتيم» في قسم الصورة لصفر عشان تختفي كل الظلال.</p>
+              <p class="hint">«بدون» يشيل كل الظلال عن الصورة: اللوح تحت النص، والتدرّج فوق
+                وتحت، وتغميق الإطار في بقية الأشكال. مؤشر «قوة التعتيم» يشتغل بس مع الخيار الثاني.</p>
+            </div>
+            <div class="slider-row">
+              <span class="lbl">حجم خط الملاحظة</span><span class="slider-val" id="noteSizeVal">٣١</span>
+              <input type="range" id="noteSize" min="16" max="64" step="1" value="31">
             </div>
           </div>
 
@@ -774,8 +779,8 @@ input[type="range"]::-moz-range-thumb{
           <div class="field">
             <label for="note">ملاحظة (اختياري)</label>
             <textarea id="note" rows="3" placeholder="روسيندو ماتيو ما صنع الا عطرين حلوين رقم ٥ و ٧"></textarea>
-            <p class="hint">تطلع بالأحمر بدون مربع. اضغط Enter وين ما تبي السطر ينكسر —
-              وإلا الأداة تكسره لك على عرض العمود.</p>
+            <p class="hint">تطلع كما كتبتها بالضبط، بخط أحمر نحيف بدون مربع ولا عنوان.
+              اضغط Enter وين ما تبي السطر ينكسر، وحجم الخط من «محتوى البطاقة».</p>
           </div>
           <hr class="divider">
           <div class="row">
@@ -912,7 +917,7 @@ const state = {
   snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:58,
-  blockX:0, blockY:0, noteX:0, noteY:0, plate:true
+  blockX:0, blockY:0, noteX:0, noteY:0, shade:false, noteSize:31
 };
 
 let photoImg = null;
@@ -1155,6 +1160,7 @@ function drawBackground(){
   ctx.direction = "ltr";
 }
 function drawScrims(){
+  if (!state.shade) return;
   const a = clamp(state.scrim / 100, 0, 0.9);
   let g = ctx.createLinearGradient(0, 0, 0, H * 0.62);
   g.addColorStop(0, "rgba(8,6,4," + a + ")"); g.addColorStop(1, "rgba(8,6,4,0)");
@@ -1165,7 +1171,7 @@ function drawScrims(){
   ctx.fillStyle = g; ctx.fillRect(0, H * 0.66, W, H * 0.34);
 }
 function drawTextPlate(y0, y1){
-  if (!state.plate) return;
+  if (!state.shade) return;
   const a = clamp(state.scrim / 100, 0, 0.9) * 0.82;
   if (a <= 0.03 || y1 - y0 < 40) return;
   const top = clamp(y0 - 110, 0, H), bot = clamp(y1 + 60, 0, H);
@@ -1440,30 +1446,20 @@ function noteAnchor(top){ noteTop = top; return top; }
 function drawNoteBox(top){
   const txt = String(state.note).trim();
   if (!txt) return top;
-  const font = '400 31px Tajawal, sans-serif';
-  const lh = 42, labelH = 38, indent = 26;
+  const size = clamp(Number(state.noteSize) || 31, 16, 64);
+  const font = '300 ' + size + 'px Tajawal, sans-serif';
+  const lh = Math.round(size * 1.36);
   const right = colRight();
-  const lines = wrapLines(txt, font, COL - indent);
+  const lines = wrapLines(txt, font, COL);
 
-  // no plate, so each glyph carries its own dark halo — red is the first
-  // colour to disappear against a bright photo
-  const halo = (t, tx, ty) => {
-    ctx.strokeStyle = "rgba(0,0,0,.62)"; ctx.lineWidth = 6; ctx.lineJoin = "round";
-    ctx.strokeText(t, tx, ty);
-    ctx.fillStyle = NOTE_RED; ctx.fillText(t, tx, ty);
-  };
-  shadowOn(14, 0.8, 3);
-  ctx.beginPath(); ctx.arc(right - 7, top + 14, 7, 0, Math.PI * 2);
-  ctx.fillStyle = NOTE_RED; ctx.fill();
-  ctx.font = '500 29px Tajawal, sans-serif';
+  // thin red, no outline — a soft shadow is all that holds it up
+  shadowOn(Math.round(size * 0.5), 0.8, 2);
+  ctx.font = font; ctx.fillStyle = NOTE_RED;
   ctx.direction = "rtl"; ctx.textAlign = "right";
-  halo("ملاحظة", right - indent, top + 24);
-
-  ctx.font = font;
-  lines.forEach((l, k) => halo(l, right - indent, top + labelH + lh * k + 30));
+  lines.forEach((l, k) => ctx.fillText(l, right, top + lh * k + Math.round(size * 0.94)));
   shadowOff();
   ctx.direction = "ltr";
-  return top + labelH + lines.length * lh;
+  return top + lines.length * lh;
 }
 
 function drawHandle(){
@@ -1615,7 +1611,7 @@ function allNotes(){
 
 /* ---------- 05 · the pyramid, with the community numbers under it ---------- */
 function layoutPyramid(){
-  ctx.fillStyle = "rgba(10,8,6," + clamp((state.plate ? 0.42 : 0) + state.scrim / 100 * 0.42, 0, .88) + ")";
+  ctx.fillStyle = "rgba(10,8,6," + state.shade ? clamp(0.42 + state.scrim / 100 * 0.42, 0, .88) : 0 + ")";
   ctx.fillRect(0, 0, W, H);
   const M2 = 84, right = W - M2;
   let y = SAFE_TOP + Number(state.topGap) + 30;
@@ -1657,7 +1653,7 @@ function layoutPyramid(){
 
 /* ---------- 06 · the poster ---------- */
 function layoutPoster(){
-  ctx.fillStyle = "rgba(12,9,7," + clamp((state.plate ? 0.30 : 0) + state.scrim / 100 * 0.42, 0, .82) + ")";
+  ctx.fillStyle = "rgba(12,9,7," + state.shade ? clamp(0.30 + state.scrim / 100 * 0.42, 0, .82) : 0 + ")";
   ctx.fillRect(0, 0, W, H);
   const brand = String(state.brand).trim().toUpperCase();
   if (brand){
@@ -1750,7 +1746,7 @@ function layoutPoster(){
 
 /* ---------- 10 · the number ---------- */
 function layoutNumber(){
-  ctx.fillStyle = "rgba(8,6,5," + clamp((state.plate ? 0.34 : 0) + state.scrim / 100 * 0.44, 0, .84) + ")";
+  ctx.fillStyle = "rgba(8,6,5," + state.shade ? clamp(0.34 + state.scrim / 100 * 0.44, 0, .84) : 0 + ")";
   ctx.fillRect(0, 0, W, H);
   const v = scoreOf(), hue = rampRGB(v / 10);
   const cy = SAFE_TOP + Number(state.topGap) + 380;
@@ -2140,7 +2136,7 @@ function syncControls(){
   ["brand","pname","perfumer","family","year","nTop","nHeart","nBase",
    "scoreLabel","feeling","note","handle","dayNum",
    "zoom","pan","panX","scrim",
-   "blockX","blockY","noteX","noteY"].forEach(k => set(k, state[k]));
+   "blockX","blockY","noteX","noteY","noteSize"].forEach(k => set(k, state[k]));
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
@@ -2149,7 +2145,7 @@ function syncControls(){
   set("layout", state.layout);
   syncLayoutUI();
   set("topGap", String(state.topGap));
-  const pl = $("#plate"); if (pl) pl.value = state.plate ? "1" : "0";
+  const sh = $("#shade"); if (sh) sh.value = state.shade ? "1" : "0";
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
 }
@@ -2164,6 +2160,7 @@ function updateRangeLabels(){
   $("#blockYVal").textContent = px(state.blockY);
   $("#noteXVal").textContent  = px(state.noteX);
   $("#noteYVal").textContent  = px(state.noteY);
+  $("#noteSizeVal").textContent = toAr(Math.round(state.noteSize));
   const lv = $("#longVal"), sv = $("#silVal");
   lv.textContent = Number(state.longevity).toFixed(1);
   sv.textContent = Number(state.sillage).toFixed(1);
@@ -2390,13 +2387,14 @@ function wire(){
   bindSelect("cardSide", "cardSide");
   bindSelect("topGap", "topGap", v => parseInt(v, 10) || 0);
   bindSelect("dayOn", "dayOn", v => v === "1");
-  bindSelect("plate", "plate", v => v === "1");
+  bindSelect("shade", "shade", v => v === "1");
 
   $("#brand").addEventListener("input", refreshDup);
   $("#pname").addEventListener("input", refreshDup);
 
   [["zoom","zoom"],["pan","pan"],["panX","panX"],["scrim","scrim"],
    ["blockX","blockX"],["blockY","blockY"],["noteX","noteX"],["noteY","noteY"],
+   ["noteSize","noteSize"],
    ["longevity","longevity"],["sillage","sillage"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
