@@ -703,17 +703,7 @@ input[type="range"]::-moz-range-thumb{
               <input type="range" id="blockY" min="-320" max="320" step="2" value="0">
             </div>
           </div>
-          <p class="hint">والملاحظة الحمراء تتحرّك لحالها فوق هذا.</p>
-          <div class="row">
-            <div class="slider-row">
-              <span class="lbl">الملاحظة يمين ويسار</span><span class="slider-val" id="noteXVal">٠</span>
-              <input type="range" id="noteX" min="-320" max="320" step="2" value="0">
-            </div>
-            <div class="slider-row">
-              <span class="lbl">الملاحظة فوق وتحت</span><span class="slider-val" id="noteYVal">٠</span>
-              <input type="range" id="noteY" min="-520" max="520" step="2" value="0">
-            </div>
-          </div>
+          <p class="hint">والملاحظة تتحرّك لحالها — مؤشراتها تحت حقلها في «كلامك».</p>
           <button class="icon-btn" type="button" id="resetPos" style="align-self:flex-start">
             رجّع الأماكن للأصل
           </button>
@@ -819,6 +809,17 @@ input[type="range"]::-moz-range-thumb{
                 <select id="noteBox"><option value="0">لا</option><option value="1">نعم</option></select>
               </div>
             </div>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">الملاحظة فوق وتحت</span><span class="slider-val" id="noteYVal">٠</span>
+                <input type="range" id="noteY" min="-520" max="520" step="2" value="0">
+              </div>
+              <div class="slider-row">
+                <span class="lbl">الملاحظة يمين ويسار</span><span class="slider-val" id="noteXVal">٠</span>
+                <input type="range" id="noteX" min="-320" max="320" step="2" value="0">
+              </div>
+            </div>
+            <p class="hint">تتحرّك لحالها فوق حركة التصميم كامل.</p>
             <p class="hint"></p>
           </div>
           <hr class="divider">
@@ -1134,19 +1135,49 @@ function colLeft(){  return colRight() - COL; }
 // the free text blocks run to the far margin, not just the card column
 function textW(){ return colRight() - M; }
 
-// tone: 50 keeps the picked colour, below mixes toward black, above toward white
 function hexRGB(h){
   h = String(h || "#ffffff").replace("#", "");
   if (h.length === 3) h = h[0]+h[0] + h[1]+h[1] + h[2]+h[2];
   const n = parseInt(h, 16) || 0;
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
+function rgbHSL(r, g, b){
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn;
+  const sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  let h;
+  if (mx === r)      h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (mx === g) h = ((b - r) / d + 2) / 6;
+  else               h = ((r - g) / d + 4) / 6;
+  return [h, sat, l];
+}
+function hue2rgb(p, q, t){
+  if (t < 0) t += 1;
+  if (t > 1) t -= 1;
+  if (t < 1/6) return p + (q - p) * 6 * t;
+  if (t < 1/2) return q;
+  if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+  return p;
+}
+function hslRGB(h, sat, l){
+  if (sat === 0) return [l, l, l];
+  const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat;
+  const p = 2 * l - q;
+  return [hue2rgb(p, q, h + 1/3), hue2rgb(p, q, h), hue2rgb(p, q, h - 1/3)];
+}
+// Tone moves lightness only, so the hue you picked stays the hue you get:
+// 0 is that colour very dark, 50 is exactly it, 100 is that colour very light.
+// Red never becomes black at one end or white at the other.
 function toneColor(hex, tone){
-  const t = clamp(Number(tone), 0, 100) / 50 - 1;
-  let [r, g, b] = hexRGB(hex);
-  if (t < 0){ const k = 1 + t; r *= k; g *= k; b *= k; }
-  else { r += (255 - r) * t; g += (255 - g) * t; b += (255 - b) * t; }
-  return "rgb(" + Math.round(r) + "," + Math.round(g) + "," + Math.round(b) + ")";
+  const [r, g, b] = hexRGB(hex);
+  const [h, sat, l] = rgbHSL(r / 255, g / 255, b / 255);
+  const t = clamp(Number(tone), 0, 100) / 100;
+  const lo = Math.min(l, 0.16), hi = Math.max(l, 0.86);
+  const L = t < 0.5 ? lo + (l - lo) * (t / 0.5)
+                    : l  + (hi - l) * ((t - 0.5) / 0.5);
+  const out = hslRGB(h, sat, clamp(L, 0, 1));
+  return "rgb(" + out.map(c => Math.round(c * 255)).join(",") + ")";
 }
 function drawBlockBox(x, top, w, h){
   ctx.fillStyle = "rgba(10,8,6,.62)";
