@@ -244,7 +244,7 @@ body{
 .row-3{ display:grid; gap:var(--sp3); grid-template-columns:repeat(3,1fr); }
 @media (max-width:560px){ .row{ grid-template-columns:1fr; } }
 
-input[type="text"], input[type="number"], textarea, select{
+input[type="text"], input[type="number"], input[type="color"], textarea, select{
   font:inherit; font-size:14px;
   width:100%; padding:9px 11px;
   color:var(--ink);
@@ -254,6 +254,7 @@ input[type="text"], input[type="number"], textarea, select{
   transition:border-color .15s, box-shadow .15s;
 }
 textarea{ resize:vertical; min-height:64px; line-height:1.6; }
+input[type="color"]{ height:44px; padding:4px; cursor:pointer; }
 input:focus-visible, textarea:focus-visible, select:focus-visible, .btn:focus-visible,
 summary:focus-visible, .chip:focus-visible, .swatch-btn:focus-visible{
   outline:2px solid var(--focus); outline-offset:2px;
@@ -688,10 +689,6 @@ input[type="range"]::-moz-range-thumb{
               <p class="hint">«بدون» يشيل كل الظلال عن الصورة: اللوح تحت النص، والتدرّج فوق
                 وتحت، وتغميق الإطار في بقية الأشكال. مؤشر «قوة التعتيم» يشتغل بس مع الخيار الثاني.</p>
             </div>
-            <div class="slider-row">
-              <span class="lbl">حجم خط الملاحظة</span><span class="slider-val" id="noteSizeVal">٣١</span>
-              <input type="range" id="noteSize" min="16" max="64" step="1" value="31">
-            </div>
           </div>
 
           <hr class="divider">
@@ -775,12 +772,54 @@ input[type="range"]::-moz-range-thumb{
             <p class="hint">اكتبه عامي ويضحك — شخصية أو موقف، مو وصف عطر. أقصر = أقوى.
               اضغط Enter وين ما تبي ينزل سطر جديد.</p>
             <div class="chips" id="feelIdeas" aria-label="أفكار للاحساس"></div>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">حجم خط الاحساس</span><span class="slider-val" id="feelSizeVal">٤٦</span>
+                <input type="range" id="feelSize" min="18" max="80" step="1" value="46">
+              </div>
+              <div class="field">
+                <label for="feelColor">لون الاحساس</label>
+                <input type="color" id="feelColor" value="#FFFFFF">
+              </div>
+            </div>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">درجة اللون</span><span class="slider-val" id="feelToneVal">٥٠</span>
+                <input type="range" id="feelTone" min="0" max="100" step="1" value="50">
+              </div>
+              <div class="field">
+                <label for="feelBox">تظليل بمربع</label>
+                <select id="feelBox"><option value="0">لا</option><option value="1">نعم</option></select>
+              </div>
+            </div>
+            <p class="hint">«درجة اللون» ٥٠ يعطيك اللون كما اخترته، أقل منه يغمّقه وأكثر يفتّحه.</p>
           </div>
           <div class="field">
             <label for="note">ملاحظة (اختياري)</label>
             <textarea id="note" rows="3" placeholder="روسيندو ماتيو ما صنع الا عطرين حلوين رقم ٥ و ٧"></textarea>
-            <p class="hint">تطلع كما كتبتها بالضبط، بخط أحمر نحيف بدون مربع ولا عنوان.
-              اضغط Enter وين ما تبي السطر ينكسر، وحجم الخط من «محتوى البطاقة».</p>
+            <p class="hint">تطلع كما كتبتها بالضبط بدون عنوان. اضغط Enter وين ما تبي السطر ينكسر —
+              وإلا يكمل لين طرف الصورة.</p>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">حجم خط الملاحظة</span><span class="slider-val" id="noteSizeVal">٣١</span>
+                <input type="range" id="noteSize" min="16" max="80" step="1" value="31">
+              </div>
+              <div class="field">
+                <label for="noteColor">لون الملاحظة</label>
+                <input type="color" id="noteColor" value="#FF4D4D">
+              </div>
+            </div>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">درجة اللون</span><span class="slider-val" id="noteToneVal">٥٠</span>
+                <input type="range" id="noteTone" min="0" max="100" step="1" value="50">
+              </div>
+              <div class="field">
+                <label for="noteBox">تظليل بمربع</label>
+                <select id="noteBox"><option value="0">لا</option><option value="1">نعم</option></select>
+              </div>
+            </div>
+            <p class="hint"></p>
           </div>
           <hr class="divider">
           <div class="row">
@@ -917,7 +956,9 @@ const state = {
   snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:58,
-  blockX:0, blockY:0, noteX:0, noteY:0, shade:false, noteSize:31
+  blockX:0, blockY:0, noteX:0, noteY:0, shade:false,
+  feelSize:46, feelColor:"#FFFFFF", feelTone:50, feelBox:false,
+  noteSize:31, noteColor:NOTE_RED,  noteTone:50, noteBox:false
 };
 
 let photoImg = null;
@@ -1090,6 +1131,29 @@ function wrapVar(text, font, firstW, restW){
 // column geometry — text always reads right-to-left inside the column
 function colRight(){ return state.cardSide === "right" ? W - M : M + COL; }
 function colLeft(){  return colRight() - COL; }
+// the free text blocks run to the far margin, not just the card column
+function textW(){ return colRight() - M; }
+
+// tone: 50 keeps the picked colour, below mixes toward black, above toward white
+function hexRGB(h){
+  h = String(h || "#ffffff").replace("#", "");
+  if (h.length === 3) h = h[0]+h[0] + h[1]+h[1] + h[2]+h[2];
+  const n = parseInt(h, 16) || 0;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function toneColor(hex, tone){
+  const t = clamp(Number(tone), 0, 100) / 50 - 1;
+  let [r, g, b] = hexRGB(hex);
+  if (t < 0){ const k = 1 + t; r *= k; g *= k; b *= k; }
+  else { r += (255 - r) * t; g += (255 - g) * t; b += (255 - b) * t; }
+  return "rgb(" + Math.round(r) + "," + Math.round(g) + "," + Math.round(b) + ")";
+}
+function drawBlockBox(x, top, w, h){
+  ctx.fillStyle = "rgba(10,8,6,.62)";
+  roundRect(x, top, w, h, 20); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.16)"; ctx.lineWidth = 1.5;
+  roundRect(x, top, w, h, 20); ctx.stroke();
+}
 
 /* ---------- background ---------- */
 // Official Snapchat glyph (24x24 path, from the simple-icons set) rendered
@@ -1418,20 +1482,31 @@ function drawColumn(startY){
   // feeling
   const feel = String(state.feeling).trim();
   if (feel){
-    const lf = '300 46px Tajawal, sans-serif', bf = '400 46px Tajawal, sans-serif';
+    const size = clamp(Number(state.feelSize) || 46, 18, 80);
+    const lh = Math.round(size * 1.39), col = textW();
+    const lf = '300 ' + size + 'px Tajawal, sans-serif',
+          bf = '400 ' + size + 'px Tajawal, sans-serif';
     ctx.font = lf;
     const lw = ctx.measureText("الاحساس:").width + 16;
-    const lines = wrapVar(feel, bf, COL - lw, COL);
+    const lines = wrapVar(feel, bf, col - lw, col);
+    const ink = toneColor(state.feelColor, state.feelTone);
+    if (state.feelBox){
+      const pad = 24, top = y - Math.round(size * 0.82);
+      drawBlockBox(right - col - pad, top - pad, col + pad * 2,
+                   (lines.length - 1) * lh + Math.round(size * 1.1) + pad * 2);
+    }
     shadowOn(18, 0.8, 3);
     ctx.direction = "rtl"; ctx.textAlign = "right";
+    ctx.fillStyle = ink;
     lines.forEach((t, i) => {
-      ctx.font = bf; ctx.fillStyle = "#FFFFFF";
-      ctx.fillText(t, right - (i === 0 ? lw : 0), y + i * 64);
+      ctx.font = bf;
+      ctx.fillText(t, right - (i === 0 ? lw : 0), y + i * lh);
     });
-    ctx.font = lf; ctx.fillStyle = "rgba(255,255,255,.88)";
+    ctx.font = lf; ctx.globalAlpha = 0.88;
     ctx.fillText("الاحساس:", right, y);
+    ctx.globalAlpha = 1;
     shadowOff();
-    y += lines.length * 64 + 22;
+    y += lines.length * lh + 22;
   }
 
   return y;
@@ -1446,20 +1521,26 @@ function noteAnchor(top){ noteTop = top; return top; }
 function drawNoteBox(top){
   const txt = String(state.note).trim();
   if (!txt) return top;
-  const size = clamp(Number(state.noteSize) || 31, 16, 64);
+  const size = clamp(Number(state.noteSize) || 31, 16, 80);
   const font = '300 ' + size + 'px Tajawal, sans-serif';
-  const lh = Math.round(size * 1.36);
+  const lh = Math.round(size * 1.36), col = textW();
   const right = colRight();
-  const lines = wrapLines(txt, font, COL);
+  const lines = wrapLines(txt, font, col);
+  const h = lines.length * lh;
 
-  // thin red, no outline — a soft shadow is all that holds it up
+  if (state.noteBox){
+    const pad = 22;
+    drawBlockBox(right - col - pad, top - pad, col + pad * 2, h + pad * 2);
+  }
+  // thin, no outline — a soft shadow is all that holds it up
   shadowOn(Math.round(size * 0.5), 0.8, 2);
-  ctx.font = font; ctx.fillStyle = NOTE_RED;
+  ctx.font = font;
+  ctx.fillStyle = toneColor(state.noteColor, state.noteTone);
   ctx.direction = "rtl"; ctx.textAlign = "right";
   lines.forEach((l, k) => ctx.fillText(l, right, top + lh * k + Math.round(size * 0.94)));
   shadowOff();
   ctx.direction = "ltr";
-  return top + lines.length * lh;
+  return top + h;
 }
 
 function drawHandle(){
@@ -2136,7 +2217,8 @@ function syncControls(){
   ["brand","pname","perfumer","family","year","nTop","nHeart","nBase",
    "scoreLabel","feeling","note","handle","dayNum",
    "zoom","pan","panX","scrim",
-   "blockX","blockY","noteX","noteY","noteSize"].forEach(k => set(k, state[k]));
+   "blockX","blockY","noteX","noteY",
+   "feelSize","feelColor","feelTone","noteSize","noteColor","noteTone"].forEach(k => set(k, state[k]));
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
@@ -2146,6 +2228,8 @@ function syncControls(){
   syncLayoutUI();
   set("topGap", String(state.topGap));
   const sh = $("#shade"); if (sh) sh.value = state.shade ? "1" : "0";
+  const fb = $("#feelBox"); if (fb) fb.value = state.feelBox ? "1" : "0";
+  const nb = $("#noteBox"); if (nb) nb.value = state.noteBox ? "1" : "0";
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
 }
@@ -2160,7 +2244,10 @@ function updateRangeLabels(){
   $("#blockYVal").textContent = px(state.blockY);
   $("#noteXVal").textContent  = px(state.noteX);
   $("#noteYVal").textContent  = px(state.noteY);
+  $("#feelSizeVal").textContent = toAr(Math.round(state.feelSize));
   $("#noteSizeVal").textContent = toAr(Math.round(state.noteSize));
+  $("#feelToneVal").textContent = toAr(Math.round(state.feelTone));
+  $("#noteToneVal").textContent = toAr(Math.round(state.noteTone));
   const lv = $("#longVal"), sv = $("#silVal");
   lv.textContent = Number(state.longevity).toFixed(1);
   sv.textContent = Number(state.sillage).toFixed(1);
@@ -2388,13 +2475,17 @@ function wire(){
   bindSelect("topGap", "topGap", v => parseInt(v, 10) || 0);
   bindSelect("dayOn", "dayOn", v => v === "1");
   bindSelect("shade", "shade", v => v === "1");
+  bindSelect("feelBox", "feelBox", v => v === "1");
+  bindSelect("noteBox", "noteBox", v => v === "1");
+  bind("feelColor", "feelColor");
+  bind("noteColor", "noteColor");
 
   $("#brand").addEventListener("input", refreshDup);
   $("#pname").addEventListener("input", refreshDup);
 
   [["zoom","zoom"],["pan","pan"],["panX","panX"],["scrim","scrim"],
    ["blockX","blockX"],["blockY","blockY"],["noteX","noteX"],["noteY","noteY"],
-   ["noteSize","noteSize"],
+   ["feelSize","feelSize"],["noteSize","noteSize"],["feelTone","feelTone"],["noteTone","noteTone"],
    ["longevity","longevity"],["sillage","sillage"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
