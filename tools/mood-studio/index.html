@@ -1050,6 +1050,10 @@ function loadImageFile(file, maxEdge, q){
    ============================================================ */
 const cv  = $("#cv");
 const ctx = cv.getContext("2d");
+// the photo is almost always scaled to fill 1080x1920; Chrome's default
+// resampling is "low", which is where a soft-looking story comes from
+ctx.imageSmoothingEnabled = true;
+try{ ctx.imageSmoothingQuality = "high"; }catch(_){}
 
 // Weak to strong, in the same orange-yellow-green family the product pages
 // already use for these two numbers.
@@ -2229,7 +2233,15 @@ function syncLayoutUI(){
 }
 
 function updateSummaries(){
-  $("#photoNote").textContent = photoImg ? "جاهزة ✓" : "ما فيه صورة";
+  const pn = $("#photoNote");
+  if (!photoImg){ pn.textContent = "ما فيه صورة"; pn.style.color = ""; }
+  else {
+    const pw = photoImg.naturalWidth || photoImg.width, ph = photoImg.naturalHeight || photoImg.height;
+    // the story is 1080x1920; a smaller photo gets blown up and softens
+    const k = Math.max(W / pw, H / ph);
+    pn.textContent = pw + "×" + ph + (k > 1.02 ? "  ⚠︎ أصغر من الستوري" : "  ✓");
+    pn.style.color = k > 1.02 ? "var(--danger)" : "";
+  }
   $("#perfNote").textContent = [state.brand, state.pname].filter(x => String(x).trim()).join(" · ") || "—";
   const bits = [];
   if (splitNotes(state.nTop).length || splitNotes(state.nHeart).length || splitNotes(state.nBase).length) bits.push("هرم");
@@ -2429,7 +2441,7 @@ async function saveImage(){
     const name = ["3altayer", slug(state.brand), slug(state.pname), scoreOf().toFixed(2)]
       .filter(Boolean).join("-").slice(0, 90) + ".png";
     const st = await offerFile(name, blob);
-    if (st === "saved") toast("انحفظت الصورة ✓");
+    if (st === "saved") toast("انحفظت الصورة ✓  " + W + "×" + H + " PNG");
     else toast(MSG[st][0], MSG[st][1]);
   }catch(_){ toast("ما قدرت أجهّز الصورة", "err"); }
   finally{ btn.disabled = false; btn.textContent = prev; render(showGuides); }
@@ -2532,7 +2544,7 @@ function wire(){
 
   $("#photoIn").addEventListener("change", async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    try{ photoImg = await loadImageFile(f, 2200, 0.92); toast("انرفعت الصورة ✓"); onChange(); }
+    try{ photoImg = await loadImageFile(f, 3000, 0.95); toast("انرفعت الصورة ✓"); onChange(); }
     catch(_){ toast("ما قدرت أقرأ الصورة", "err"); }
   });
 
