@@ -409,6 +409,14 @@ input[type="range"]::-moz-range-thumb{
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
 }
+.offsite{
+  margin:0 0 10px; padding:10px 14px;
+  background:var(--danger-soft); border:1px solid var(--danger);
+  border-radius:var(--r-md); color:var(--ink);
+  font-size:13px; line-height:1.7;
+}
+.offsite strong{ color:var(--danger); }
+.offsite a{ color:var(--danger); font-weight:600; white-space:nowrap; }
 </style>
 <style>
 /* ---- v2 additions ---- */
@@ -474,6 +482,12 @@ input[type="range"]::-moz-range-thumb{
         <span class="stage-title">المعاينة</span>
         <span class="stage-dim" id="dimTxt">1080 × 1920</span>
       </div>
+      <p class="offsite" id="offsite" hidden>
+        <strong>صور العطور ما توصل من هنا.</strong>
+        هذي النسخة معاينة للواجهة بس — ملفات صور المتجر ما هي معها، فما تطلع
+        لا القارورة ولا العطور اللي بالخلفية.
+        <a id="offsiteLink" href="#" target="_blank" rel="noopener">افتح الأداة الكاملة ↗</a>
+      </p>
       <div class="canvas-wrap">
         <canvas id="cv" width="1080" height="1920" role="img" aria-label="معاينة صورة تقييم العطر"></canvas>
       </div>
@@ -2375,6 +2389,24 @@ async function cutFor(id){
 // only rows whose photo survives a cut-out
 function cuttable(){ return PERFUMES.filter(r => r.k && r.i); }
 
+// The store photos sit beside this file in the repo. Published as an artifact
+// the page travels alone, so every one of them 404s and nothing can be cut —
+// the cabinet, the hero bottle and the library all come up empty at once. One
+// probe at boot tells him that, with the link that does carry them, instead of
+// leaving him to read an empty frame.
+const FULL_URL = "https://abdullahalra33-coder.github.io/3altayer-images/tools/mood-studio/";
+let photosOk = null;
+async function probePhotos(){
+  const row = cuttable()[0];
+  if (!row) return;
+  try{ await loadStorePhoto(row.i); photosOk = true; }
+  catch(_){ photosOk = false; }
+  try{ document.documentElement.dataset.photos = photosOk ? "on" : "off"; }catch(_){}
+  const el = $("#offsite"), a = $("#offsiteLink");
+  if (a) a.href = FULL_URL;
+  if (el) el.hidden = photosOk !== false;
+}
+
 async function buildLibrary(){
   const ids = state.lib.slice(0, LIB_MAX);
   if (!ids.length) throw new Error("empty");
@@ -2973,7 +3005,8 @@ async function ensureCabinet(){
   }catch(err){
     cabinetBg = null;
     cabinetFlag("error");
-    toast(LIB_ERR[err && err.message] || "ما قدرت أبني المكتبة", "err");
+    toast(photosOk === false ? LIB_ERR.offsite
+          : LIB_ERR[err && err.message] || "ما قدرت أبني المكتبة", "err");
   }finally{ cabinetBusy = false; }
 }
 
@@ -3083,6 +3116,7 @@ function layoutShelf(){
 const LIB_ERR = {
   empty:"ما اخترت أي عطر — أضف من البحث فوق أو اضغط «املأ عشوائي»",
   none:"ما قدرت أقص أي قارورة من اللي اخترتها",
+  offsite:"صور العطور ما توصل من هذي النسخة — افتح الأداة الكاملة من الرابط فوق المعاينة",
   tainted:"صور المتجر ما تشتغل بهذي النسخة — افتح الأداة من رابط GitHub Pages"
 };
 async function withLibrary(fn, btn){
@@ -3836,6 +3870,7 @@ function wire(){
   refreshDup();
   updateSummaries();
   render(false);
+  probePhotos();
   await ensureFonts();
   render(showGuides);
   $("#catHint").textContent =
