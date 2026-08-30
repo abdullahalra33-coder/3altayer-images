@@ -600,6 +600,29 @@ input[type="range"]::-moz-range-thumb{
                 <input type="range" id="bgDim" min="0" max="80" step="1" value="38">
               </div>
             </div>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">تكبير الخلفية</span><span class="slider-val" id="bgZoomVal">١٫٠٠</span>
+                <input type="range" id="bgZoom" min="1" max="3" step="0.01" value="1">
+              </div>
+              <div class="field">
+                <label for="bgFlip">اعكس الخلفية</label>
+                <select id="bgFlip">
+                  <option value="0">لا</option>
+                  <option value="1">نعم — الجدار يروح الجهة الثانية</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">تحريك الخلفية أفقي</span><span class="slider-val" id="bgPanXVal">٥٠٪</span>
+                <input type="range" id="bgPanX" min="0" max="100" step="1" value="50">
+              </div>
+              <div class="slider-row">
+                <span class="lbl">تحريك الخلفية عمودي</span><span class="slider-val" id="bgPanYVal">٥٠٪</span>
+                <input type="range" id="bgPanY" min="0" max="100" step="1" value="50">
+              </div>
+            </div>
             <div class="slider-row">
               <span class="lbl">عرض الجهة اليسار (صورة اليوم)</span><span class="slider-val" id="heroWVal">٥٦٠</span>
               <input type="range" id="heroW" min="320" max="720" step="10" value="560">
@@ -1066,7 +1089,8 @@ const state = {
   feelSize:46, feelColor:"#FFFFFF", feelTone:50, feelBox:false,
   noteSize:31, noteColor:NOTE_RED,  noteTone:50, noteBox:false,
   lib:[], libCols:3, libRows:4, libColor:"#241A12", libTone:50, libShelf:true,
-  shelfStyle:"wood", shelfSeed:7, bgBlur:6, bgDim:38, heroW:560
+  shelfStyle:"wood", shelfSeed:7,
+  bgBlur:6, bgDim:38, heroW:560, bgFlip:false, bgZoom:1, bgPanX:50, bgPanY:50
 };
 
 let photoImg = null;
@@ -2360,7 +2384,10 @@ function backdropCanvas(){
   if (!bgImg) return null;
   const blur = clamp(Number(state.bgBlur) || 0, 0, 24);
   const dim  = clamp(Number(state.bgDim) || 0, 0, 80) / 100;
-  const key = [bgImg.src.length, blur, dim].join("|");
+  const zoom = clamp(Number(state.bgZoom) || 1, 1, 3);
+  const px = clamp(Number(state.bgPanX), 0, 100), py = clamp(Number(state.bgPanY), 0, 100);
+  const flip = !!state.bgFlip;
+  const key = [bgImg.src.length, blur, dim, zoom, px, py, flip].join("|");
   if (bgBlurKey === key && bgBlurred) return bgBlurred;
 
   const c = document.createElement("canvas");
@@ -2370,11 +2397,16 @@ function backdropCanvas(){
   try{ g.imageSmoothingQuality = "high"; }catch(_){}
   // overscan by the blur radius so the blurred edges never show the ground
   const over = blur * 3;
-  const k = Math.max((W + over * 2) / bgImg.width, (H + over * 2) / bgImg.height);
+  const k = Math.max((W + over * 2) / bgImg.width, (H + over * 2) / bgImg.height) * zoom;
   const dw = bgImg.width * k, dh = bgImg.height * k;
   g.save();
+  // a wide shop shot has to be framed into 9:16, and mirroring moves the
+  // busy wall to whichever side the words are not on
+  if (flip){ g.translate(W, 0); g.scale(-1, 1); }
   try{ if (blur) g.filter = "blur(" + blur + "px)"; }catch(_){}
-  g.drawImage(bgImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  // the flip mirrors exactly what the framing already shows, so turning it on
+  // moves the wall to the other side and changes nothing else
+  g.drawImage(bgImg, (W - dw) * (px / 100), (H - dh) * (py / 100), dw, dh);
   g.restore();
   if (dim > 0){ g.fillStyle = "rgba(6,4,3," + dim + ")"; g.fillRect(0, 0, W, H); }
   bgBlurred = c; bgBlurKey = key;
@@ -2815,7 +2847,8 @@ function syncControls(){
    "zoom","pan","panX","scrim",
    "blockX","blockY","noteX","noteY",
    "feelSize","feelColor","feelTone","noteSize","noteColor","noteTone",
-   "libCols","libRows","libColor","libTone","bgBlur","bgDim","heroW"].forEach(k => set(k, state[k]));
+   "libCols","libRows","libColor","libTone","bgBlur","bgDim","heroW",
+   "bgZoom","bgPanX","bgPanY"].forEach(k => set(k, state[k]));
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
@@ -2829,6 +2862,7 @@ function syncControls(){
   const fb = $("#feelBox"); if (fb) fb.value = state.feelBox ? "1" : "0";
   const nb = $("#noteBox"); if (nb) nb.value = state.noteBox ? "1" : "0";
   const ls = $("#libShelf"); if (ls) ls.value = state.libShelf ? "1" : "0";
+  const bf = $("#bgFlip"); if (bf) bf.value = state.bgFlip ? "1" : "0";
   renderLibChips();
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
@@ -2854,6 +2888,9 @@ function updateRangeLabels(){
   $("#bgBlurVal").textContent = toAr(Math.round(state.bgBlur));
   $("#bgDimVal").textContent  = toAr(Math.round(state.bgDim)) + "٪";
   $("#heroWVal").textContent  = toAr(Math.round(state.heroW));
+  $("#bgZoomVal").textContent = Number(state.bgZoom).toFixed(2);
+  $("#bgPanXVal").textContent = toAr(Math.round(state.bgPanX)) + "٪";
+  $("#bgPanYVal").textContent = toAr(Math.round(state.bgPanY)) + "٪";
   const lv = $("#longVal"), sv = $("#silVal");
   lv.textContent = Number(state.longevity).toFixed(1);
   sv.textContent = Number(state.sillage).toFixed(1);
@@ -3091,6 +3128,7 @@ function wire(){
   bind("libColor", "libColor");
   bindSelect("libShelf", "libShelf", v => v === "1");
   bindSelect("shelfStyle", "shelfStyle");
+  bindSelect("bgFlip", "bgFlip", v => v === "1");
 
   $("#brand").addEventListener("input", refreshDup);
   $("#pname").addEventListener("input", refreshDup);
@@ -3100,6 +3138,7 @@ function wire(){
    ["feelSize","feelSize"],["noteSize","noteSize"],["feelTone","feelTone"],["noteTone","noteTone"],
    ["libCols","libCols"],["libRows","libRows"],["libTone","libTone"],
    ["bgBlur","bgBlur"],["bgDim","bgDim"],["heroW","heroW"],
+   ["bgZoom","bgZoom"],["bgPanX","bgPanX"],["bgPanY","bgPanY"],
    ["longevity","longevity"],["sillage","sillage"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
