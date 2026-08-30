@@ -24,6 +24,24 @@ LABELS = [("t", re.compile(r'TOP\s*NOTES', re.I)),
 # Some source rows carry Fragrantica review chatter where notes should be
 # ("Smelling of Bay Jun 19", "you will be able to add your own reviews").
 JUNK = re.compile(r'(?i)\b(review|reviews|inspired|smelling|you|your|click|http|www)\b')
+# Some product pages run the perfumer line into Fragrantica comment text, so a
+# handful of rows carry a sentence where a name belongs. A perfumer credit is a
+# name, or a comma-separated list of names — never prose, never a date.
+PROSE = re.compile(r'(?i)\b(this|that|note|with|and|too|was|the|by|of|to|for|from|because'
+                   r'|using|trying|doing|hired|thinking|even|more|nobody|himself|possible'
+                   r'|world|where|which|it|is|are|my|me|i)\b')
+
+def is_perfumer(u):
+    parts = [p.strip() for p in str(u).split(",") if p.strip()]
+    if not parts:
+        return False
+    for p in parts:
+        if len(p) > 30 or len(p.split()) > 3:  return False
+        if re.search(r"\d", p):                return False
+        if PROSE.search(p):                    return False
+    return True
+
+
 def is_note(t):
     if not t or len(t) > 28: return False
     if len(t.split()) > 4: return False
@@ -90,7 +108,7 @@ def parse(desc, name, brand_raw):
     if facts.get("العائلة العطرية"): out["f"] = facts["العائلة العطرية"]
     if facts.get("سنة الإصدار"):     out["y"] = facts["سنة الإصدار"]
     u = facts.get("المعطّر") or facts.get("المعطر")
-    if u: out["u"] = u
+    if u and is_perfumer(u): out["u"] = u
     if not out.get("g") and facts.get("الفئة"): out["g"] = facts["الفئة"]
     return out
 
