@@ -510,6 +510,16 @@ input[type="range"]::-moz-range-thumb{
           <button class="btn btn-primary" type="button" id="inRoom" style="align-self:flex-start">
             🏛 ورّني العطر داخل المكتبة
           </button>
+          <div class="field">
+            <label for="scene">التصميم <span class="mini">(٥٠ جاهز)</span></label>
+            <select id="scene"></select>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button class="icon-btn" type="button" id="scenePrev">◀ السابق</button>
+              <button class="icon-btn" type="button" id="sceneNext">التالي ▶</button>
+              <button class="icon-btn" type="button" id="sceneRand">عشوائي</button>
+            </div>
+            <p class="hint">اختيار تصميم يعبّي كل المؤشرات — بعدها عدّل عليه زي ما تبي.</p>
+          </div>
           <p class="hint" id="inRoomHint">القارورة تنقص من خلفيتها البيضاء وتوقف داخل مكتبة عطور.
             ما تحتاج ترفع شي.</p>
 
@@ -1122,7 +1132,9 @@ const state = {
   lib:[], libCols:3, libRows:4, libColor:"#241A12", libTone:50, libShelf:true,
   shelfStyle:"wood", shelfSeed:7,
   bgBlur:6, bgDim:38, heroW:560, bgFlip:false, bgZoom:1, bgPanX:50, bgPanY:50,
-  heroPose:"held", heroTilt:-7, heroLift:120
+  heroPose:"held", heroTilt:-7, heroLift:120,
+  shelfKind:"shelves", shelfRows:6, shelfPer:6, shelfBlur:3,
+  heroSide:"left", heroScale:1, scene:"s01"
 };
 
 let photoImg = null;
@@ -1302,7 +1314,8 @@ function wrapVar(text, font, firstW, restW){
 // the cabinet layout owns the left half for the bottle, so its column is
 // always on the right whatever the side setting says
 function colRight(){
-  return (state.layout === "shelf" || state.cardSide === "right") ? W - M : M + COL;
+  if (state.layout === "shelf") return state.heroSide === "right" ? M + COL : W - M;
+  return state.cardSide === "right" ? W - M : M + COL;
 }
 function colLeft(){  return colRight() - COL; }
 // the free text blocks run to the far margin, not just the card column
@@ -2468,17 +2481,31 @@ function setBackdrop(dataUrl){
 // Five looks over one generator. The bottle set is picked from a fixed seed,
 // so the cabinet behind today's story is the same one as yesterday's — that
 // sameness is the point.
+// Fifty ready compositions over the same generator: eight palettes, five
+// backdrop kinds, six camera distances, and the bottle moved, resized, tilted
+// and re-sided. Picking one writes its values into the sliders, so it is a
+// starting point he can then push around, not a locked template.
+const SCENES = [{"id":"s01","name":"01 · خشب دافئ · رفوف · بعيد جداً","a":{"layout":"shelf","shelfStyle":"wood","shelfKind":"shelves","shelfRows":8,"shelfPer":8,"shelfBlur":6,"shelfSeed":7,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":-7,"heroLift":120,"panelMode":"full","topGap":180}},{"id":"s02","name":"02 · أسود وذهبي · رفوف · بعيد","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"shelves","shelfRows":7,"shelfPer":7,"shelfBlur":5,"shelfSeed":8,"heroSide":"right","heroPose":"held","heroScale":1.18,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s03","name":"03 · نيون أزرق · رفوف · متوسط","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"shelves","shelfRows":6,"shelfPer":6,"shelfBlur":3,"shelfSeed":9,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s04","name":"04 · زجاج ذهبي · رفوف · قريب","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"shelves","shelfRows":4,"shelfPer":5,"shelfBlur":4,"shelfSeed":10,"heroSide":"left","heroPose":"shelf","heroScale":1.35,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s05","name":"05 · نبيذي · رفوف · قريب جداً","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"shelves","shelfRows":3,"shelfPer":4,"shelfBlur":7,"shelfSeed":11,"heroSide":"right","heroPose":"held","heroScale":1,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s06","name":"06 · أخضر داكن · رفوف · لصق العدسة","a":{"layout":"shelf","shelfStyle":"jade","shelfKind":"shelves","shelfRows":2,"shelfPer":3,"shelfBlur":11,"shelfSeed":12,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}},{"id":"s07","name":"07 · رمادي حجري · رفوف · بعيد جداً","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"shelves","shelfRows":8,"shelfPer":8,"shelfBlur":6,"shelfSeed":13,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":-7,"heroLift":120,"panelMode":"full","topGap":180}},{"id":"s08","name":"08 · رملي فاتح · رفوف · بعيد","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"shelves","shelfRows":7,"shelfPer":7,"shelfBlur":5,"shelfSeed":14,"heroSide":"right","heroPose":"shelf","heroScale":1.35,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s09","name":"09 · خشب دافئ · جدار ضبابي · بعيد وضبابي","a":{"layout":"shelf","shelfStyle":"wood","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":9,"shelfSeed":15,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s10","name":"10 · أسود وذهبي · جدار ضبابي · بعيد وضبابي","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":9,"shelfSeed":16,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s11","name":"11 · نيون أزرق · جدار ضبابي · بعيد وضبابي","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":11,"shelfSeed":17,"heroSide":"right","heroPose":"held","heroScale":0.88,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s12","name":"12 · زجاج ذهبي · جدار ضبابي · بعيد وضبابي","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"wall","shelfRows":8,"shelfPer":8,"shelfBlur":9,"shelfSeed":18,"heroSide":"left","heroPose":"shelf","heroScale":1.35,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}},{"id":"s13","name":"13 · نبيذي · جدار ضبابي · بعيد وضبابي","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":9,"shelfSeed":19,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":-7,"heroLift":120,"panelMode":"full","topGap":180}},{"id":"s14","name":"14 · أخضر داكن · جدار ضبابي · بعيد وضبابي","a":{"layout":"shelf","shelfStyle":"jade","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":9,"shelfSeed":20,"heroSide":"right","heroPose":"held","heroScale":1.18,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s15","name":"15 · رمادي حجري · جدار ضبابي · بعيد وضبابي","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":9,"shelfSeed":21,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s16","name":"16 · رملي فاتح · جدار ضبابي · بعيد وضبابي","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":9,"shelfSeed":22,"heroSide":"left","heroPose":"shelf","heroScale":1.35,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s17","name":"17 · خشب دافئ · قريب جداً · قريب جداً","a":{"layout":"shelf","shelfStyle":"wood","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":23,"heroSide":"right","heroPose":"held","heroScale":1,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s18","name":"18 · أسود وذهبي · قريب جداً · قريب جداً","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":24,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}},{"id":"s19","name":"19 · نيون أزرق · قريب جداً · قريب جداً","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":25,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":-7,"heroLift":120,"panelMode":"full","topGap":180}},{"id":"s20","name":"20 · زجاج ذهبي · قريب جداً · قريب جداً","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":26,"heroSide":"right","heroPose":"shelf","heroScale":1.35,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s21","name":"21 · نبيذي · قريب جداً · قريب جداً","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":27,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s22","name":"22 · أخضر داكن · قريب جداً · قريب جداً","a":{"layout":"shelf","shelfStyle":"jade","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":28,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s23","name":"23 · رمادي حجري · قريب جداً · قريب جداً","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":29,"heroSide":"right","heroPose":"held","heroScale":0.88,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s24","name":"24 · رملي فاتح · قريب جداً · قريب جداً","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":30,"heroSide":"left","heroPose":"shelf","heroScale":1.35,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}},{"id":"s25","name":"25 · خشب دافئ · ضوء واحد · ضوء مسلّط","a":{"layout":"shelf","shelfStyle":"wood","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":31,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":-7,"heroLift":120,"panelMode":"full","topGap":180}},{"id":"s26","name":"26 · أسود وذهبي · ضوء واحد · ضوء مسلّط","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":32,"heroSide":"right","heroPose":"held","heroScale":1.18,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s27","name":"27 · نيون أزرق · ضوء واحد · ضوء مسلّط","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":33,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s28","name":"28 · زجاج ذهبي · ضوء واحد · ضوء مسلّط","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":34,"heroSide":"left","heroPose":"shelf","heroScale":1.35,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s29","name":"29 · نبيذي · ضوء واحد · ضوء مسلّط","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":35,"heroSide":"right","heroPose":"held","heroScale":1,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s30","name":"30 · أخضر داكن · ضوء واحد · ضوء مسلّط","a":{"layout":"shelf","shelfStyle":"jade","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":36,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}},{"id":"s31","name":"31 · رمادي حجري · ضوء واحد · ضوء مسلّط","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":37,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":-7,"heroLift":120,"panelMode":"full","topGap":180}},{"id":"s32","name":"32 · رملي فاتح · ضوء واحد · ضوء مسلّط","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":38,"heroSide":"right","heroPose":"shelf","heroScale":1.35,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s33","name":"33 · خشب دافئ · فترينة · بعيد جداً","a":{"layout":"shelf","shelfStyle":"wood","shelfKind":"vitrine","shelfRows":8,"shelfPer":8,"shelfBlur":6,"shelfSeed":39,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s34","name":"34 · أسود وذهبي · فترينة · بعيد","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"vitrine","shelfRows":7,"shelfPer":7,"shelfBlur":5,"shelfSeed":40,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s35","name":"35 · نيون أزرق · فترينة · متوسط","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"vitrine","shelfRows":6,"shelfPer":6,"shelfBlur":3,"shelfSeed":41,"heroSide":"right","heroPose":"held","heroScale":0.88,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s36","name":"36 · زجاج ذهبي · فترينة · قريب","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"vitrine","shelfRows":4,"shelfPer":5,"shelfBlur":4,"shelfSeed":42,"heroSide":"left","heroPose":"shelf","heroScale":1.35,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}},{"id":"s37","name":"37 · نبيذي · فترينة · قريب جداً","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"vitrine","shelfRows":3,"shelfPer":4,"shelfBlur":7,"shelfSeed":43,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":-7,"heroLift":120,"panelMode":"full","topGap":180}},{"id":"s38","name":"38 · أخضر داكن · فترينة · لصق العدسة","a":{"layout":"shelf","shelfStyle":"jade","shelfKind":"vitrine","shelfRows":2,"shelfPer":3,"shelfBlur":11,"shelfSeed":44,"heroSide":"right","heroPose":"held","heroScale":1.18,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s39","name":"39 · رمادي حجري · فترينة · بعيد جداً","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"vitrine","shelfRows":8,"shelfPer":8,"shelfBlur":6,"shelfSeed":45,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s40","name":"40 · رملي فاتح · فترينة · بعيد","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"vitrine","shelfRows":7,"shelfPer":7,"shelfBlur":5,"shelfSeed":46,"heroSide":"left","heroPose":"shelf","heroScale":1.35,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s41","name":"41 · خشب دافئ · قارورة تملأ الإطار","a":{"layout":"shelf","shelfStyle":"wood","shelfKind":"close","shelfRows":2,"shelfPer":3,"shelfBlur":12,"shelfSeed":102,"heroSide":"left","heroPose":"held","heroScale":1.5,"heroTilt":-9,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s42","name":"42 · أسود وذهبي · جدار عطور بعيد","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"wall","shelfRows":9,"shelfPer":10,"shelfBlur":13,"shelfSeed":103,"heroSide":"right","heroPose":"held","heroScale":0.9,"heroTilt":8,"heroLift":220,"panelMode":"full","topGap":300}},{"id":"s43","name":"43 · نيون أزرق · فترينة نيون قريبة","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"vitrine","shelfRows":5,"shelfPer":6,"shelfBlur":4,"shelfSeed":104,"heroSide":"left","heroPose":"shelf","heroScale":1.1,"heroTilt":0,"heroLift":0,"panelMode":"full","topGap":180}},{"id":"s44","name":"44 · زجاج ذهبي · بقعة ضوء ذهبية","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"spot","shelfRows":3,"shelfPer":4,"shelfBlur":10,"shelfSeed":105,"heroSide":"right","heroPose":"held","heroScale":1.25,"heroTilt":-13,"heroLift":110,"panelMode":"notes","topGap":180}},{"id":"s45","name":"45 · نبيذي · نبيذي بدون بطاقة","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"close","shelfRows":2,"shelfPer":3,"shelfBlur":9,"shelfSeed":106,"heroSide":"left","heroPose":"held","heroScale":1.35,"heroTilt":11,"heroLift":80,"panelMode":"off","topGap":50}},{"id":"s46","name":"46 · أخضر داكن · رفوف خضراء بعيدة","a":{"layout":"shelf","shelfStyle":"jade","shelfKind":"shelves","shelfRows":8,"shelfPer":9,"shelfBlur":7,"shelfSeed":107,"heroSide":"right","heroPose":"shelf","heroScale":0.85,"heroTilt":0,"heroLift":0,"panelMode":"bars","topGap":300}},{"id":"s47","name":"47 · رمادي حجري · ضباب رمادي","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"wall","shelfRows":8,"shelfPer":9,"shelfBlur":14,"shelfSeed":108,"heroSide":"left","heroPose":"held","heroScale":1.15,"heroTilt":-6,"heroLift":140,"panelMode":"full","topGap":180}},{"id":"s48","name":"48 · رملي فاتح · فترينة رملية","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"vitrine","shelfRows":6,"shelfPer":7,"shelfBlur":3,"shelfSeed":109,"heroSide":"right","heroPose":"held","heroScale":1.0,"heroTilt":5,"heroLift":100,"panelMode":"full","topGap":180}},{"id":"s49","name":"49 · أسود وذهبي · مسرحي — ضوء وقارورة","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"spot","shelfRows":4,"shelfPer":4,"shelfBlur":11,"shelfSeed":110,"heroSide":"left","heroPose":"held","heroScale":1.45,"heroTilt":-15,"heroLift":90,"panelMode":"off","topGap":50}},{"id":"s50","name":"50 · خشب دافئ · رفوف حادّة بعيدة","a":{"layout":"shelf","shelfStyle":"wood","shelfKind":"shelves","shelfRows":7,"shelfPer":8,"shelfBlur":2,"shelfSeed":111,"heroSide":"right","heroPose":"shelf","heroScale":0.95,"heroTilt":0,"heroLift":0,"panelMode":"notes","topGap":300}}];
+
+function applyScene(id){
+  const sc = SCENES.find(x => x.id === id);
+  if (!sc) return;
+  Object.assign(state, sc.a);
+  state.scene = id;
+  cabinetBg = null; cabinetKey = ""; cabinetFlag("building");
+  photoImg = null;
+  syncControls(); onChange();
+}
+
 const SHELF_STYLES = {
-  wood:  { name:"دولاب خشب دافئ",  wall:["#3A2415","#1E120A","#0C0704"], board:"#5A3A20",
-           led:"rgba(255,196,120,.40)", blur:3, rows:6, per:6, vig:.72 },
-  black: { name:"أسود وذهبي",       wall:["#17130F","#0C0A08","#050403"], board:"#2A2119",
-           led:"rgba(232,180,81,.42)", blur:3, rows:6, per:6, vig:.78 },
-  neon:  { name:"فترينة نيون",      wall:["#08131E","#050C15","#02060B"], board:"#123047",
-           led:"rgba(90,200,255,.45)", blur:3, rows:6, per:6, vig:.74 },
-  glass: { name:"رف زجاج ذهبي",     wall:["#4A3418","#2A1D0E","#120C06"], board:"#7A5A2A",
-           led:"rgba(255,214,140,.46)", blur:2, rows:5, per:5, vig:.66 },
-  bokeh: { name:"عمق ضبابي",        wall:["#2C1D14","#160E09","#080504"], board:"#3A2718",
-           led:"rgba(255,180,110,.30)", blur:11, rows:5, per:6, vig:.80 }
+  wood:  { name:"خشب دافئ",   wall:["#3A2415","#1E120A","#0C0704"], board:"#5A3A20", led:"rgba(255,196,120,.40)", vig:.72 },
+  black: { name:"أسود وذهبي", wall:["#17130F","#0C0A08","#050403"], board:"#2A2119", led:"rgba(232,180,81,.42)",  vig:.78 },
+  neon:  { name:"نيون أزرق",  wall:["#08131E","#050C15","#02060B"], board:"#123047", led:"rgba(90,200,255,.45)",  vig:.74 },
+  glass: { name:"زجاج ذهبي",  wall:["#4A3418","#2A1D0E","#120C06"], board:"#7A5A2A", led:"rgba(255,214,140,.46)", vig:.66 },
+  wine:  { name:"نبيذي",      wall:["#2C0F14","#180809","#0A0405"], board:"#4A1D22", led:"rgba(255,150,140,.34)", vig:.76 },
+  jade:  { name:"أخضر داكن",  wall:["#0E1F18","#08120E","#040807"], board:"#1C3A2C", led:"rgba(150,235,190,.34)", vig:.74 },
+  stone: { name:"رمادي حجري", wall:["#22242A","#141519","#08090B"], board:"#3A3D45", led:"rgba(220,228,240,.28)", vig:.70 },
+  sand:  { name:"رملي فاتح",  wall:["#4A3A28","#2E2418","#16110B"], board:"#6E543A", led:"rgba(255,224,180,.42)", vig:.62 }
 };
 
 // small deterministic PRNG — same seed, same cabinet, every day
@@ -2519,9 +2546,11 @@ function grain(){
 
 async function buildCabinet(){
   const st = SHELF_STYLES[state.shelfStyle] || SHELF_STYLES.wood;
+  const kind = state.shelfKind || "shelves";       // shelves | wall | close | spot
   const pool = cuttable();
   if (!pool.length) throw new Error("none");
-  const rows = st.rows, per = st.per;
+  const rows = clamp(Number(state.shelfRows) || 6, 1, 9);
+  const per  = clamp(Number(state.shelfPer)  || 6, 2, 12);
   const want = rows * per + 6;
   const chosen = state.lib.length >= 6 ? state.lib
                : seededPick(pool, want, Number(state.shelfSeed) || 7).map(r => r.i);
@@ -2551,7 +2580,7 @@ async function buildCabinet(){
     // shelves are not spaced to the millimetre, and neither are these
     const boardY = Math.round((r + 1) * rowH) - 24 + Math.round((rnd() - 0.5) * rowH * 0.14);
     const far = (rows - 1 - r) / Math.max(1, rows - 1);   // 1 at the top, 0 at the bottom
-    const blur = st.blur + far * 2.2;
+    const blur = clamp(Number(state.shelfBlur), 0, 30) + far * 2.2;
     const fade = 0.62 + (1 - far) * 0.30;
 
     // light pools instead of a flat band — a strip lamp lights the middle of
@@ -2596,13 +2625,31 @@ async function buildCabinet(){
       g.restore();
     }
 
-    // the board: a lit front lip, its thickness, and the shadow it throws
-    g.fillStyle = "rgba(255,255,255,.20)"; g.fillRect(0, boardY, W, 2);
-    g.fillStyle = st.board; g.fillRect(0, boardY + 2, W, 15);
-    g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(0, boardY + 15, W, 4);
-    const under = g.createLinearGradient(0, boardY + 19, 0, boardY + 76);
-    under.addColorStop(0, "rgba(0,0,0,.62)"); under.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = under; g.fillRect(0, boardY + 19, W, 57);
+    // the board: a lit front lip, its thickness, and the shadow it throws.
+    // "wall" and "spot" have no boards — the bottles are just depth.
+    if (kind === "shelves" || kind === "close" || kind === "vitrine"){
+      g.fillStyle = "rgba(255,255,255,.20)"; g.fillRect(0, boardY, W, 2);
+      g.fillStyle = st.board; g.fillRect(0, boardY + 2, W, 15);
+      g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(0, boardY + 15, W, 4);
+      const under = g.createLinearGradient(0, boardY + 19, 0, boardY + 76);
+      under.addColorStop(0, "rgba(0,0,0,.62)"); under.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = under; g.fillRect(0, boardY + 19, W, 57);
+    }
+  }
+
+  // vertical mullions turn a wall of shelves into a glass vitrine
+  if (kind === "vitrine"){
+    for (let i = 1; i < 4; i++){
+      const x = Math.round(W * i / 4);
+      g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(x - 5, 0, 10, H);
+      g.fillStyle = "rgba(255,255,255,.13)"; g.fillRect(x - 5, 0, 2, H);
+    }
+  }
+  // a single hard pool of light, everything else swallowed
+  if (kind === "spot"){
+    const sp = g.createRadialGradient(W * 0.34, H * 0.56, 0, W * 0.34, H * 0.56, H * 0.52);
+    sp.addColorStop(0, "rgba(0,0,0,0)"); sp.addColorStop(1, "rgba(0,0,0,.86)");
+    g.fillStyle = sp; g.fillRect(0, 0, W, H);
   }
 
   // one more pass of atmosphere over the whole thing
@@ -2621,17 +2668,25 @@ async function buildCabinet(){
   return c;
 }
 
+// the build is async, so publish its state on <html> — the preview needs it
+// to know whether it is showing the backdrop or the placeholder
+function cabinetFlag(v){ try{ document.documentElement.dataset.cabinet = v; }catch(_){} }
+
 async function ensureCabinet(){
-  const key = [state.shelfStyle, state.shelfSeed, state.lib.join(",")].join("|");
-  if (cabinetKey === key && cabinetBg) return;
+  const key = [state.shelfStyle, state.shelfKind, state.shelfRows, state.shelfPer,
+               state.shelfBlur, state.shelfSeed, state.lib.join(",")].join("|");
+  if (cabinetKey === key && cabinetBg){ cabinetFlag("ready"); return; }
   if (cabinetBusy) return;
   cabinetBusy = true;
+  cabinetFlag("building");
   try{
     cabinetBg = await buildCabinet();
     cabinetKey = key;
+    cabinetFlag("ready");
     scheduleRender();
   }catch(err){
     cabinetBg = null;
+    cabinetFlag("error");
     toast(LIB_ERR[err && err.message] || "ما قدرت أبني المكتبة", "err");
   }finally{ cabinetBusy = false; }
 }
@@ -2641,18 +2696,22 @@ async function ensureCabinet(){
 // rating never lands on top of the perfume.
 function drawShelfHero(){
   const panelW = clamp(Number(state.heroW) || 560, 320, 720);
+  const onRight = state.heroSide === "right";
   if (photoImg){
+    const px0 = onRight ? W - panelW : 0;
     const k = Math.max(panelW / photoImg.width, H / photoImg.height) * state.zoom;
     const dw = photoImg.width * k, dh = photoImg.height * k;
     ctx.save();
-    ctx.beginPath(); ctx.rect(0, 0, panelW, H); ctx.clip();
-    ctx.drawImage(photoImg, (panelW - dw) * (state.panX / 100), (H - dh) * (state.pan / 100), dw, dh);
+    ctx.beginPath(); ctx.rect(px0, 0, panelW, H); ctx.clip();
+    ctx.drawImage(photoImg, px0 + (panelW - dw) * (state.panX / 100), (H - dh) * (state.pan / 100), dw, dh);
     ctx.restore();
     // feather the inner edge so it sits in the cabinet instead of on top of it
     const feather = Math.round(panelW * 0.42);
-    const fade = ctx.createLinearGradient(panelW - feather, 0, panelW, 0);
+    const fade = onRight ? ctx.createLinearGradient(px0 + feather, 0, px0, 0)
+                         : ctx.createLinearGradient(panelW - feather, 0, panelW, 0);
     fade.addColorStop(0, "rgba(10,7,4,0)"); fade.addColorStop(1, "rgba(10,7,4,.96)");
-    ctx.fillStyle = fade; ctx.fillRect(panelW - feather, 0, feather, H);
+    ctx.fillStyle = fade;
+    ctx.fillRect(onRight ? px0 : panelW - feather, 0, feather, H);
     return;
   }
   const cut = heroCut;
@@ -2660,10 +2719,12 @@ function drawShelfHero(){
   // A photo the catalogue flagged as a crop has no bottom to stand on, so let
   // it bleed off the frame instead of showing the amputation.
   const whole = heroWhole;
-  const maxH = H * (whole ? 0.54 : 0.72), maxW = 375;
+  const sc = clamp(Number(state.heroScale) || 1, 0.5, 2.2);
+  const maxH = H * (whole ? 0.54 : 0.72) * sc, maxW = 375 * sc;
   const k = Math.min(maxW / cut.width, maxH / cut.height);
   const dw = cut.width * k, dh = cut.height * k;
-  const cx = 250, baseY = whole ? H - 300 : H + 30;
+  const cx = state.heroSide === "right" ? W - 250 : 250;
+  const baseY = whole ? H - 300 : H + 30;
   // "Held" is the pose he wants: nothing here can draw a believable hand, but
   // lifting the bottle off the shelf and tilting it reads as presented rather
   // than displayed, and the shadow falls on the shelf below instead of under it.
@@ -2718,10 +2779,12 @@ function ensureHero(){
 
 function layoutShelf(){
   drawShelfHero();
-  // a wash down the right so the column reads over the cabinet
-  const g2 = ctx.createLinearGradient(W, 0, W - 820, 0);
+  // a wash behind the column, on whichever side it ended up
+  const right = state.heroSide !== "right";
+  const g2 = right ? ctx.createLinearGradient(W, 0, W - 820, 0)
+                   : ctx.createLinearGradient(0, 0, 820, 0);
   g2.addColorStop(0, "rgba(8,6,4,.82)"); g2.addColorStop(1, "rgba(8,6,4,0)");
-  ctx.fillStyle = g2; ctx.fillRect(W - 820, 0, 820, H);
+  ctx.fillStyle = g2; ctx.fillRect(right ? W - 820 : 0, 0, 820, H);
 
   const startY = SAFE_TOP + Number(state.topGap) + 44;
   const end = drawColumn(startY);
@@ -2996,6 +3059,7 @@ function syncControls(){
   const ls = $("#libShelf"); if (ls) ls.value = state.libShelf ? "1" : "0";
   const bf = $("#bgFlip"); if (bf) bf.value = state.bgFlip ? "1" : "0";
   set("heroPose", state.heroPose);
+  set("scene", state.scene);
   renderLibChips();
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
@@ -3267,6 +3331,22 @@ function wire(){
   bindSelect("bgFlip", "bgFlip", v => v === "1");
   bindSelect("heroPose", "heroPose");
 
+  const sceneSel = $("#scene");
+  SCENES.forEach(sc => {
+    const o = document.createElement("option");
+    o.value = sc.id; o.textContent = sc.name;
+    sceneSel.appendChild(o);
+  });
+  sceneSel.value = state.scene || SCENES[0].id;
+  sceneSel.addEventListener("change", () => applyScene(sceneSel.value));
+  const step = d => {
+    const i = SCENES.findIndex(x => x.id === state.scene);
+    applyScene(SCENES[(((i < 0 ? 0 : i) + d) % SCENES.length + SCENES.length) % SCENES.length].id);
+  };
+  $("#scenePrev").addEventListener("click", () => step(-1));
+  $("#sceneNext").addEventListener("click", () => step(1));
+  $("#sceneRand").addEventListener("click", () => applyScene(SCENES[Math.floor(Math.random() * SCENES.length)].id));
+
   $("#brand").addEventListener("input", refreshDup);
   $("#pname").addEventListener("input", refreshDup);
 
@@ -3357,7 +3437,7 @@ function wire(){
 
   $("#shelfNew").addEventListener("click", () => {
     state.shelfSeed = (Number(state.shelfSeed) || 7) + 1;
-    cabinetBg = null; cabinetKey = "";
+    cabinetBg = null; cabinetKey = ""; cabinetFlag("building");
     onChange(); toast("بدّلت قوارير الدولاب");
   });
 
