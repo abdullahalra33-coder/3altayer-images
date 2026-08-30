@@ -636,6 +636,28 @@ input[type="range"]::-moz-range-thumb{
               <span class="lbl">عرض الجهة اليسار (صورة اليوم)</span><span class="slider-val" id="heroWVal">٥٦٠</span>
               <input type="range" id="heroW" min="320" max="720" step="10" value="560">
             </div>
+          </div>
+
+          <hr class="divider">
+
+          <div class="field">
+            <label for="heroPose">وقفة العطر</label>
+            <select id="heroPose">
+              <option value="held">مرفوعة ومايلة — كأنها بيدك</option>
+              <option value="shelf">واقفة على الرف</option>
+            </select>
+            <p class="hint">ما أقدر أرسم يد حقيقية بالكود، بس الرفع والميلان والظل اللي ينزل
+              على الرف اللي تحت يعطون إحساس إنها ممسوكة. للي يد حقيقية، ارفع صورتك في «الصورة» فوق.</p>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">الميلان</span><span class="slider-val" id="heroTiltVal">−٧</span>
+                <input type="range" id="heroTilt" min="-20" max="20" step="1" value="-7">
+              </div>
+              <div class="slider-row">
+                <span class="lbl">الارتفاع</span><span class="slider-val" id="heroLiftVal">١٢٠</span>
+                <input type="range" id="heroLift" min="0" max="400" step="5" value="120">
+              </div>
+            </div>
             <button class="icon-btn" type="button" id="bgClear" style="align-self:flex-start">شيل الخلفية الثابتة</button>
           </div>
 
@@ -1099,7 +1121,8 @@ const state = {
   noteSize:31, noteColor:NOTE_RED,  noteTone:50, noteBox:false,
   lib:[], libCols:3, libRows:4, libColor:"#241A12", libTone:50, libShelf:true,
   shelfStyle:"wood", shelfSeed:7,
-  bgBlur:6, bgDim:38, heroW:560, bgFlip:false, bgZoom:1, bgPanX:50, bgPanY:50
+  bgBlur:6, bgDim:38, heroW:560, bgFlip:false, bgZoom:1, bgPanX:50, bgPanY:50,
+  heroPose:"held", heroTilt:-7, heroLift:120
 };
 
 let photoImg = null;
@@ -2525,7 +2548,8 @@ async function buildCabinet(){
   let n = 0;
 
   for (let r = 0; r < rows; r++){
-    const boardY = Math.round((r + 1) * rowH) - 24;
+    // shelves are not spaced to the millimetre, and neither are these
+    const boardY = Math.round((r + 1) * rowH) - 24 + Math.round((rnd() - 0.5) * rowH * 0.14);
     const far = (rows - 1 - r) / Math.max(1, rows - 1);   // 1 at the top, 0 at the bottom
     const blur = st.blur + far * 2.2;
     const fade = 0.62 + (1 - far) * 0.30;
@@ -2539,21 +2563,25 @@ async function buildCabinet(){
       g.fillStyle = pool2; g.fillRect(0, boardY - rowH, W, rowH);
     }
 
-    // bottles: jittered, overlapping a little, never a clean grid
-    const slot = W / per;
-    for (let i = 0; i < per; i++){
+    // A real shelf has gaps, leans, uneven counts, and bottles running off the
+    // edge of the frame. An even row of upright bottles is the giveaway.
+    const count = per + (rnd() < 0.45 ? 1 : 0) - (rnd() < 0.25 ? 1 : 0);
+    const slot = W / count;
+    for (let i = 0; i < count; i++){
+      if (rnd() < 0.11){ n++; continue; }               // somebody took one
       const cut = cuts[n++ % cuts.length];
-      const scale = 0.80 + rnd() * 0.30;
-      const maxH = (rowH - 62) * scale, maxW = slot * 1.12;
+      const scale = 0.74 + rnd() * 0.40;
+      const maxH = (rowH - 62) * scale, maxW = slot * 1.18;
       const k = Math.min(maxW / cut.width, maxH / cut.height);
       const dw = cut.width * k, dh = cut.height * k;
-      const cx = slot * i + slot / 2 + (rnd() - 0.5) * slot * 0.34;
+      const cx = slot * i + slot / 2 + (rnd() - 0.5) * slot * 0.55;
+      const lean = (rnd() - 0.5) * 0.055;               // a couple of degrees
+      const lit = 0.86 + rnd() * 0.28;                  // the light is not even either
 
-      // its reflection in the board, cut short by the wall colour
       g.save();
       g.globalAlpha = 0.16 * fade;
       try{ g.filter = "blur(" + (blur + 1.5) + "px)"; }catch(_){}
-      g.translate(cx, boardY + 2); g.scale(1, -1);
+      g.translate(cx, boardY + 2); g.scale(1, -1); g.rotate(lean);
       g.drawImage(cut, -dw / 2, 0, dw, dh);
       g.restore();
       const kill = g.createLinearGradient(0, boardY, 0, boardY + Math.min(dh, 90));
@@ -2561,9 +2589,10 @@ async function buildCabinet(){
       g.fillStyle = kill; g.fillRect(0, boardY, W, Math.min(dh, 90));
 
       g.save();
-      g.globalAlpha = fade;
+      g.globalAlpha = Math.min(1, fade * lit);
       try{ g.filter = "blur(" + blur + "px)"; }catch(_){}
-      g.drawImage(cut, cx - dw / 2, boardY - dh, dw, dh);
+      g.translate(cx, boardY); g.rotate(lean);
+      g.drawImage(cut, -dw / 2, -dh, dw, dh);
       g.restore();
     }
 
@@ -2634,10 +2663,21 @@ function drawShelfHero(){
   const maxH = H * (whole ? 0.54 : 0.72), maxW = 375;
   const k = Math.min(maxW / cut.width, maxH / cut.height);
   const dw = cut.width * k, dh = cut.height * k;
-  const cx = 230, baseY = whole ? H - 300 : H + 30;
-  if (whole){
-    // it has to sit on the shelf, not hover over it: a contact shadow and the
-    // same reflection the bottles behind it get
+  const cx = 250, baseY = whole ? H - 300 : H + 30;
+  // "Held" is the pose he wants: nothing here can draw a believable hand, but
+  // lifting the bottle off the shelf and tilting it reads as presented rather
+  // than displayed, and the shadow falls on the shelf below instead of under it.
+  const held = state.heroPose !== "shelf";
+  const tilt = held ? (Number(state.heroTilt) || 0) * Math.PI / 180 : 0;
+  const lift = held ? clamp(Number(state.heroLift) || 0, 0, 400) : 0;
+  const y = baseY - lift;
+
+  if (held){
+    const sh = ctx.createRadialGradient(cx + 26, baseY + 30, 0, cx + 26, baseY + 30, dw * 0.95);
+    sh.addColorStop(0, "rgba(0,0,0,.46)"); sh.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = sh;
+    ctx.beginPath(); ctx.ellipse(cx + 26, baseY + 30, dw * 0.95, 40, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (whole){
     const sh = ctx.createRadialGradient(cx, baseY, 0, cx, baseY, dw * 0.7);
     sh.addColorStop(0, "rgba(0,0,0,.6)"); sh.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = sh;
@@ -2654,9 +2694,15 @@ function drawShelfHero(){
     kill.addColorStop(0, "rgba(10,7,4,0)"); kill.addColorStop(1, "rgba(10,7,4,.95)");
     ctx.fillStyle = kill; ctx.fillRect(cx - dw / 2, baseY, dw, refH);
   }
-  shadowOn(40, 0.7, 10);
-  ctx.drawImage(cut, cx - dw / 2, baseY - dh, dw, dh);
+
+  ctx.save();
+  shadowOn(46, 0.72, 14);
+  // turn about the middle, not the base — pivoting at the foot swings the cap
+  // a full bottle-height sideways and walks it off the frame
+  ctx.translate(cx, y - dh / 2); ctx.rotate(tilt);
+  ctx.drawImage(cut, -dw / 2, -dh / 2, dw, dh);
   shadowOff();
+  ctx.restore();
 }
 
 let heroCut = null, heroId = "", heroWhole = false;
@@ -2934,7 +2980,7 @@ function syncControls(){
    "blockX","blockY","noteX","noteY",
    "feelSize","feelColor","feelTone","noteSize","noteColor","noteTone",
    "libCols","libRows","libColor","libTone","bgBlur","bgDim","heroW",
-   "bgZoom","bgPanX","bgPanY"].forEach(k => set(k, state[k]));
+   "bgZoom","bgPanX","bgPanY","heroTilt","heroLift"].forEach(k => set(k, state[k]));
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
@@ -2949,6 +2995,7 @@ function syncControls(){
   const nb = $("#noteBox"); if (nb) nb.value = state.noteBox ? "1" : "0";
   const ls = $("#libShelf"); if (ls) ls.value = state.libShelf ? "1" : "0";
   const bf = $("#bgFlip"); if (bf) bf.value = state.bgFlip ? "1" : "0";
+  set("heroPose", state.heroPose);
   renderLibChips();
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
@@ -2977,6 +3024,9 @@ function updateRangeLabels(){
   $("#bgZoomVal").textContent = Number(state.bgZoom).toFixed(2);
   $("#bgPanXVal").textContent = toAr(Math.round(state.bgPanX)) + "٪";
   $("#bgPanYVal").textContent = toAr(Math.round(state.bgPanY)) + "٪";
+  const t = Math.round(state.heroTilt);
+  $("#heroTiltVal").textContent = (t < 0 ? "−" : t > 0 ? "+" : "") + toAr(Math.abs(t));
+  $("#heroLiftVal").textContent = toAr(Math.round(state.heroLift));
   const lv = $("#longVal"), sv = $("#silVal");
   lv.textContent = Number(state.longevity).toFixed(1);
   sv.textContent = Number(state.sillage).toFixed(1);
@@ -3215,6 +3265,7 @@ function wire(){
   bindSelect("libShelf", "libShelf", v => v === "1");
   bindSelect("shelfStyle", "shelfStyle");
   bindSelect("bgFlip", "bgFlip", v => v === "1");
+  bindSelect("heroPose", "heroPose");
 
   $("#brand").addEventListener("input", refreshDup);
   $("#pname").addEventListener("input", refreshDup);
@@ -3225,6 +3276,7 @@ function wire(){
    ["libCols","libCols"],["libRows","libRows"],["libTone","libTone"],
    ["bgBlur","bgBlur"],["bgDim","bgDim"],["heroW","heroW"],
    ["bgZoom","bgZoom"],["bgPanX","bgPanX"],["bgPanY","bgPanY"],
+   ["heroTilt","heroTilt"],["heroLift","heroLift"],
    ["longevity","longevity"],["sillage","sillage"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
