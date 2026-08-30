@@ -628,7 +628,20 @@ input[type="range"]::-moz-range-thumb{
               <label for="libShelf">خطوط الرفوف</label>
               <select id="libShelf"><option value="1">نعم</option><option value="0">لا</option></select>
             </div>
+            <div class="field">
+              <label for="shelfStyle">شكل الدولاب <span class="mini">(لشكل «المكتبة»)</span></label>
+              <select id="shelfStyle">
+                <option value="wood">دولاب خشب دافئ</option>
+                <option value="black">أسود وذهبي</option>
+                <option value="neon">فترينة نيون</option>
+                <option value="glass">رف زجاج ذهبي</option>
+                <option value="bokeh">عمق ضبابي</option>
+              </select>
+            </div>
           </div>
+          <button class="icon-btn" type="button" id="shelfNew" style="align-self:flex-start">
+            بدّل قوارير الدولاب
+          </button>
 
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-primary" type="button" id="libUse">استعملها كخلفية</button>
@@ -654,6 +667,7 @@ input[type="range"]::-moz-range-thumb{
               <option value="pyramid">٠٥ · الهرم البطل</option>
               <option value="poster">٠٦ · الملصق</option>
               <option value="number">١٠ · الرقم الصريح</option>
+              <option value="shelf">١١ · المكتبة</option>
             </select>
             <p class="hint" id="layoutHint">&mdash;</p>
           </div>
@@ -1023,7 +1037,8 @@ const state = {
   blockX:0, blockY:0, noteX:0, noteY:0, shade:false,
   feelSize:46, feelColor:"#FFFFFF", feelTone:50, feelBox:false,
   noteSize:31, noteColor:NOTE_RED,  noteTone:50, noteBox:false,
-  lib:[], libCols:3, libRows:4, libColor:"#241A12", libTone:50, libShelf:true
+  lib:[], libCols:3, libRows:4, libColor:"#241A12", libTone:50, libShelf:true,
+  shelfStyle:"wood", shelfSeed:7
 };
 
 let photoImg = null;
@@ -1198,10 +1213,14 @@ function wrapVar(text, font, firstW, restW){
 }
 
 // column geometry — text always reads right-to-left inside the column
-function colRight(){ return state.cardSide === "right" ? W - M : M + COL; }
+// the cabinet layout owns the left half for the bottle, so its column is
+// always on the right whatever the side setting says
+function colRight(){
+  return (state.layout === "shelf" || state.cardSide === "right") ? W - M : M + COL;
+}
 function colLeft(){  return colRight() - COL; }
 // the free text blocks run to the far margin, not just the card column
-function textW(){ return colRight() - M; }
+function textW(){ return state.layout === "shelf" ? COL : colRight() - M; }
 
 function hexRGB(h){
   h = String(h || "#ffffff").replace("#", "");
@@ -1307,6 +1326,11 @@ function drawSnapMark(cx, cy, size){
 }
 
 function drawBackground(){
+  if (state.layout === "shelf"){
+    if (cabinetBg) ctx.drawImage(cabinetBg, 0, 0, W, H);
+    else { ctx.fillStyle = "#0E0A06"; ctx.fillRect(0, 0, W, H); }
+    return;
+  }
   if (photoImg){
     const k = Math.max(W / photoImg.width, H / photoImg.height) * state.zoom;
     const dw = photoImg.width * k, dh = photoImg.height * k;
@@ -2020,7 +2044,9 @@ const LAYOUTS = {
   poster: { name:"الملصق",         draw:layoutPoster,
             hint:"اسم البراند عمودي عملاق. يبي صورة بيئية تبيّن الخلفية." },
   number: { name:"الرقم الصريح",   draw:layoutNumber,
-            hint:"الرقم يملأ الشاشة. لعطر تقييمه صادم — عالي أو واطي." }
+            hint:"الرقم يملأ الشاشة. لعطر تقييمه صادم — عالي أو واطي." },
+  shelf:  { name:"المكتبة",        draw:layoutShelf,
+            hint:"دولاب عطور ثابت خلفك، العطر على اليسار والكلام على اليمين — ما يغطي عليه." }
 };
 
 let lastBottom = 0;
@@ -2031,6 +2057,7 @@ function render(withGuides){
   drawBackground();
 
   const L = LAYOUTS[state.layout] || LAYOUTS.classic;
+  if (state.layout === "shelf"){ ensureCabinet(); ensureHero(); }
   const bx = Number(state.blockX) || 0, by = Number(state.blockY) || 0;
 
   // the whole design — «اليوم ١» down to the last line of the card — moves
@@ -2293,6 +2320,181 @@ async function buildLibrary(){
   return c;
 }
 
+/* ---------- the fixed cabinet backdrop ---------- */
+// Five looks over one generator. The bottle set is picked from a fixed seed,
+// so the cabinet behind today's story is the same one as yesterday's — that
+// sameness is the point.
+const SHELF_STYLES = {
+  wood:  { name:"دولاب خشب دافئ",  wall:["#3A2415","#1E120A","#0C0704"], board:"#5A3A20",
+           led:"rgba(255,196,120,.40)", blur:3, rows:6, per:6, vig:.72 },
+  black: { name:"أسود وذهبي",       wall:["#17130F","#0C0A08","#050403"], board:"#2A2119",
+           led:"rgba(232,180,81,.42)", blur:3, rows:6, per:6, vig:.78 },
+  neon:  { name:"فترينة نيون",      wall:["#08131E","#050C15","#02060B"], board:"#123047",
+           led:"rgba(90,200,255,.45)", blur:3, rows:6, per:6, vig:.74 },
+  glass: { name:"رف زجاج ذهبي",     wall:["#4A3418","#2A1D0E","#120C06"], board:"#7A5A2A",
+           led:"rgba(255,214,140,.46)", blur:2, rows:5, per:5, vig:.66 },
+  bokeh: { name:"عمق ضبابي",        wall:["#2C1D14","#160E09","#080504"], board:"#3A2718",
+           led:"rgba(255,180,110,.30)", blur:11, rows:5, per:6, vig:.80 }
+};
+
+// small deterministic PRNG — same seed, same cabinet, every day
+function lcg(seed){ let x = (seed >>> 0) || 1; return () => (x = (x * 1664525 + 1013904223) >>> 0) / 4294967296; }
+
+function seededPick(pool, n, seed){
+  const rnd = lcg(seed), out = [], used = new Set();
+  let guard = n * 60;
+  while (out.length < n && guard-- > 0){
+    const i = Math.floor(rnd() * pool.length);
+    if (used.has(i)) continue;
+    used.add(i); out.push(pool[i]);
+  }
+  return out;
+}
+
+let cabinetBg = null, cabinetKey = "", cabinetBusy = false;
+
+async function buildCabinet(){
+  const st = SHELF_STYLES[state.shelfStyle] || SHELF_STYLES.wood;
+  const pool = cuttable();
+  if (!pool.length) throw new Error("none");
+  const want = st.rows * st.per;
+  const chosen = (state.lib.length >= 6 ? state.lib : seededPick(pool, want, Number(state.shelfSeed) || 7).map(r => r.i));
+
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = true;
+  try{ g.imageSmoothingQuality = "high"; }catch(_){}
+
+  const wall = g.createLinearGradient(0, 0, W * 0.4, H);
+  wall.addColorStop(0, st.wall[0]); wall.addColorStop(0.5, st.wall[1]); wall.addColorStop(1, st.wall[2]);
+  g.fillStyle = wall; g.fillRect(0, 0, W, H);
+
+  const rowH = H / st.rows;
+  const cuts = [];
+  for (const id of chosen){
+    try{ const cut = await cutFor(id); if (cut) cuts.push(cut); }
+    catch(err){ if (err.message === "tainted") throw err; }
+  }
+  if (!cuts.length) throw new Error("none");
+
+  let n = 0;
+  for (let r = 0; r < st.rows; r++){
+    const boardY = Math.round((r + 1) * rowH) - 26;
+
+    // the light strip under the board above, the way the reference cabinets glow
+    const glow = g.createLinearGradient(0, boardY - rowH + 20, 0, boardY);
+    glow.addColorStop(0, st.led); glow.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = glow; g.fillRect(0, boardY - rowH + 20, W, rowH - 20);
+
+    for (let i = 0; i < st.per; i++){
+      const cut = cuts[n++ % cuts.length];
+      const cw = W / st.per, cx = cw * i + cw / 2;
+      const maxH = rowH - 74, maxW = cw - 16;
+      const k = Math.min(maxW / cut.width, maxH / cut.height);
+      const dw = cut.width * k, dh = cut.height * k;
+      g.save();
+      try{ g.filter = "blur(" + st.blur + "px)"; }catch(_){}
+      g.globalAlpha = 0.92;
+      g.drawImage(cut, cx - dw / 2, boardY - dh, dw, dh);
+      g.restore();
+    }
+
+    // the board itself: lit front edge, dark underside
+    g.fillStyle = st.board; g.fillRect(0, boardY, W, 16);
+    g.fillStyle = "rgba(255,255,255,.16)"; g.fillRect(0, boardY, W, 3);
+    const under = g.createLinearGradient(0, boardY + 16, 0, boardY + 64);
+    under.addColorStop(0, "rgba(0,0,0,.55)"); under.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = under; g.fillRect(0, boardY + 16, W, 48);
+  }
+
+  // vignette, so the middle of the frame stays the darkest thing behind text
+  const vig = g.createRadialGradient(W * 0.42, H * 0.44, H * 0.18, W * 0.42, H * 0.44, H * 0.78);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(1, "rgba(0,0,0," + st.vig + ")");
+  g.fillStyle = vig; g.fillRect(0, 0, W, H);
+  return c;
+}
+
+async function ensureCabinet(){
+  const key = [state.shelfStyle, state.shelfSeed, state.lib.join(",")].join("|");
+  if (cabinetKey === key && cabinetBg) return;
+  if (cabinetBusy) return;
+  cabinetBusy = true;
+  try{
+    cabinetBg = await buildCabinet();
+    cabinetKey = key;
+    scheduleRender();
+  }catch(err){
+    cabinetBg = null;
+    toast(LIB_ERR[err && err.message] || "ما قدرت أبني المكتبة", "err");
+  }finally{ cabinetBusy = false; }
+}
+
+/* ---------- the cabinet layout ---------- */
+// The bottle lives on the left half and the column on the right, so the
+// rating never lands on top of the perfume.
+function drawShelfHero(){
+  const panelW = 560;
+  if (photoImg){
+    const k = Math.max(panelW / photoImg.width, H / photoImg.height) * state.zoom;
+    const dw = photoImg.width * k, dh = photoImg.height * k;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, panelW, H); ctx.clip();
+    ctx.drawImage(photoImg, (panelW - dw) * (state.panX / 100), (H - dh) * (state.pan / 100), dw, dh);
+    ctx.restore();
+    // feather the inner edge so it sits in the cabinet instead of on top of it
+    const fade = ctx.createLinearGradient(panelW - 190, 0, panelW, 0);
+    fade.addColorStop(0, "rgba(10,7,4,0)"); fade.addColorStop(1, "rgba(10,7,4,.95)");
+    ctx.fillStyle = fade; ctx.fillRect(panelW - 190, 0, 190, H);
+    return;
+  }
+  const cut = heroCut;
+  if (!cut) return;
+  // A photo the catalogue flagged as a crop has no bottom to stand on, so let
+  // it bleed off the frame instead of showing the amputation.
+  const whole = heroWhole;
+  const maxH = H * (whole ? 0.54 : 0.72), maxW = 430;
+  const k = Math.min(maxW / cut.width, maxH / cut.height);
+  const dw = cut.width * k, dh = cut.height * k;
+  const cx = 268, baseY = whole ? H - 300 : H + 30;
+  if (whole){
+    const sh = ctx.createRadialGradient(cx, baseY, 0, cx, baseY, dw * 0.7);
+    sh.addColorStop(0, "rgba(0,0,0,.6)"); sh.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = sh;
+    ctx.beginPath(); ctx.ellipse(cx, baseY + 6, dw * 0.7, 26, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  shadowOn(40, 0.7, 10);
+  ctx.drawImage(cut, cx - dw / 2, baseY - dh, dw, dh);
+  shadowOff();
+}
+
+let heroCut = null, heroId = "", heroWhole = false;
+function ensureHero(){
+  const id = state.imgId;
+  if (!id || photoImg) return;
+  if (heroId === id) return;
+  heroId = id;
+  const row = PERFUMES.find(r => r.i === id);
+  heroWhole = !!(row && row.k);
+  cutFor(id).then(c => { heroCut = c; scheduleRender(); }).catch(() => { heroCut = null; });
+}
+
+function layoutShelf(){
+  drawShelfHero();
+  // a wash down the right so the column reads over the cabinet
+  const g2 = ctx.createLinearGradient(W, 0, W - 820, 0);
+  g2.addColorStop(0, "rgba(8,6,4,.82)"); g2.addColorStop(1, "rgba(8,6,4,0)");
+  ctx.fillStyle = g2; ctx.fillRect(W - 820, 0, 820, H);
+
+  const startY = SAFE_TOP + Number(state.topGap) + 44;
+  const end = drawColumn(startY);
+  const panel = layoutPanel();
+  let bottom = end;
+  if (panel){ drawPanel(end, panel); bottom = end + panel.h + 26; }
+  return noteAnchor(bottom);
+}
+
 const LIB_ERR = {
   empty:"ما اخترت أي عطر — أضف من البحث فوق أو اضغط «املأ عشوائي»",
   none:"ما قدرت أقص أي قارورة من اللي اخترتها",
@@ -2541,6 +2743,7 @@ function syncControls(){
   set("longevity", state.longevity); set("sillage", state.sillage);
   set("panelMode", state.panelMode); set("cardSide", state.cardSide);
   set("layout", state.layout);
+  set("shelfStyle", state.shelfStyle);
   syncLayoutUI();
   set("topGap", String(state.topGap));
   const sh = $("#shade"); if (sh) sh.value = state.shade ? "1" : "0";
@@ -2803,6 +3006,7 @@ function wire(){
   bind("noteColor", "noteColor");
   bind("libColor", "libColor");
   bindSelect("libShelf", "libShelf", v => v === "1");
+  bindSelect("shelfStyle", "shelfStyle");
 
   $("#brand").addEventListener("input", refreshDup);
   $("#pname").addEventListener("input", refreshDup);
@@ -2854,6 +3058,12 @@ function wire(){
   });
 
   $("#libClear").addEventListener("click", () => { state.lib = []; renderLibChips(); onChange(); });
+
+  $("#shelfNew").addEventListener("click", () => {
+    state.shelfSeed = (Number(state.shelfSeed) || 7) + 1;
+    cabinetBg = null; cabinetKey = "";
+    onChange(); toast("بدّلت قوارير الدولاب");
+  });
 
   $("#libUse").addEventListener("click", () => withLibrary(async canvas => {
     const im = new Image();
