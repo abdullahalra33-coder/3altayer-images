@@ -674,6 +674,17 @@ input[type="range"]::-moz-range-thumb{
           <hr class="divider">
 
           <div class="field">
+            <label for="heroMode">شكل العطر في التصميم</label>
+            <select id="heroMode">
+              <option value="auto">تلقائي — يقصّها، وإذا ما قدر يحطها على كرت</option>
+              <option value="cut">مقصوصة دائماً</option>
+              <option value="card">على كرت دائماً</option>
+            </select>
+            <p class="hint">بعض صور المنتجات ما تنقص أبداً — قارورة بيضا على خلفية بيضا ما لها
+              حافة يعرفها الكود. إذا طلعت القارورة ناقصة أو مشقّقة، حوّلها «على كرت» وتطلع كاملة.</p>
+          </div>
+
+          <div class="field">
             <label for="heroPose">وقفة العطر</label>
             <select id="heroPose">
               <option value="held">مرفوعة ومايلة — كأنها بيدك</option>
@@ -1167,7 +1178,7 @@ const state = {
   bgBlur:6, bgDim:38, heroW:560, bgFlip:false, bgZoom:1, bgPanX:50, bgPanY:50,
   heroPose:"held", heroTilt:-7, heroLift:120,
   shelfKind:"shelves", shelfRows:6, shelfPer:6, shelfBlur:3,
-  heroSide:"left", heroScale:1, scene:"s01"
+  heroSide:"left", heroScale:1, scene:"s01", heroMode:"auto"
 };
 
 let photoImg = null;
@@ -2363,7 +2374,7 @@ function boxBlur(src, w, h, r){
 
 // Binary morphology over the background mask, separable, prefix-sum windows.
 // Outside the frame counts as background so the border band is not eroded away.
-function maskPass(src, dst, w, h, r, horiz, wantAll){
+function maskPass(src, dst, w, h, r, horiz, wantAll, outsideIsSet){
   const n = horiz ? w : h, m = horiz ? h : w;
   const pre = new Int32Array(n + 1);
   for (let j = 0; j < m; j++){
@@ -2372,19 +2383,20 @@ function maskPass(src, dst, w, h, r, horiz, wantAll){
     for (let i = 0; i < n; i++){
       const a = Math.max(0, i - r), b = Math.min(n - 1, i + r);
       const inside = b - a + 1, hits = pre[b + 1] - pre[a];
-      const outside = wantAll ? (2*r + 1) - inside : 0;   // erode only
+      const outside = (outsideIsSet && wantAll) ? (2*r + 1) - inside : 0;
       const q = horiz ? j*w + i : i*w + j;
       dst[q] = wantAll ? (hits + outside === 2*r + 1 ? 1 : 0)
                        : (hits + outside > 0 ? 1 : 0);
     }
   }
 }
-function openMask(mask, w, h, r){
+function openMask(mask, w, h, r, outsideIsSet){
+  const o = outsideIsSet !== false;
   const a = new Uint8Array(w * h), b = new Uint8Array(w * h);
-  maskPass(mask, a, w, h, r, true,  true);   // erode
-  maskPass(a, b, w, h, r, false, true);
-  maskPass(b, a, w, h, r, true,  false);     // dilate back
-  maskPass(a, mask, w, h, r, false, false);
+  maskPass(mask, a, w, h, r, true,  true,  o);   // erode
+  maskPass(a, b, w, h, r, false, true,  o);
+  maskPass(b, a, w, h, r, true,  false, false);  // dilate back
+  maskPass(a, mask, w, h, r, false, false, false);
 }
 
 function cutOut(img){
@@ -2487,10 +2499,9 @@ function cutOut(img){
   // A white label on clear glass — Cologne Cédrat is the case — joins the paper
   // through the glass, and the fill takes the label with it, leaving lettering
   // floating in a hole. There is no threshold that separates 255 from 255, so
-  // instead the cut grades itself: count the knocked-out pixels walled in by
-  // bottle on both axes. A sound cut has almost none. Past 1.5% the bottle is
-  // being eaten, and returning null lets the caller show the photo whole rather
-  // than show the damage.
+  // instead the cut grades itself on two counts, both calibrated against five
+  // photos known to come out shredded and ten known to come out clean.
+  let rough = false;
   {
     let inside = 0, kept = 0;
     const opq = q => d[q * 4 + 3] > 128;
@@ -2507,20 +2518,36 @@ function cutOut(img){
     for (let x = x0; x <= x1; x++){
       let y = y0;
       while (y <= y1){
-        if (opq(y*w + x)){ kept++; y++; continue; }
+        if (opq(y*w + x)){ y++; continue; }
         let e = y; while (e <= y1 && !opq(e*w + x)) e++;
         if (y > y0 && e <= y1) for (let k = y; k < e; k++) if (hIn[k*w + x]) inside++;
         y = e;
       }
     }
     for (let q = 0; q < w * h; q++) if (opq(q)) kept++;
-    if (inside > kept * 0.015) return null;
+    // (1) knocked-out pixels walled in by bottle on both axes. Clean cuts run
+    // 0-2.7%; the shredded ones 3.2-32.9%.
+    if (inside > kept * 0.030) rough = true;
+
+    // Enclosed holes only catch damage the bottle closes around. Beach Hut's
+    // white cap is eaten from the top down, so the bite is open to the frame
+    // and no hole is counted — but the cap is left as two thin prongs, and a
+    // bottle is not made of thin parts. Opening the object erases anything
+    // narrower than 36px. Clean cuts lose 0-3.4% that way (Gaultier's sculpted
+    // legs are genuinely thin); a cut that ate the bottle loses more.
+    const obj = new Uint8Array(w * h);
+    for (let q = 0; q < w * h; q++) obj[q] = opq(q) ? 1 : 0;
+    openMask(obj, w, h, 18, false);
+    let thick = 0;
+    for (let q = 0; q < w * h; q++) thick += obj[q];
+    if (kept - thick > kept * 0.040) rough = true;
   }
 
   wg.putImageData(box, 0, 0);
   const out = document.createElement("canvas");
   out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
   out.getContext("2d").drawImage(work, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  out.rough = rough;
   return out;
 }
 
@@ -2568,7 +2595,7 @@ async function buildLibrary(){
   if (!ids.length) throw new Error("empty");
   const cuts = [];
   for (const id of ids){
-    try { const c = await cutFor(id); if (c) cuts.push(c); } catch (e) { if (e.message === "tainted") throw e; }
+    try { const c = await cutFor(id); if (c && !c.rough) cuts.push(c); } catch (e) { if (e.message === "tainted") throw e; }
   }
   if (!cuts.length) throw new Error("none");
 
@@ -2976,7 +3003,7 @@ async function buildCabinet(){
 
   const cuts = [];
   for (const id of chosen){
-    try{ const cut = await cutFor(id); if (cut) cuts.push(cut); }
+    try{ const cut = await cutFor(id); if (cut && !cut.rough) cuts.push(cut); }
     catch(err){ if (err.message === "tainted") throw err; }
   }
   if (!cuts.length) throw new Error("none");
@@ -3195,8 +3222,14 @@ function drawShelfHero(){
     ctx.fillRect(onRight ? px0 : panelW - feather, 0, feather, H);
     return;
   }
-  const cut = heroCut;
-  if (!cut){ if (heroFlat) drawHeroCard(heroFlat); return; }
+  const mode = state.heroMode || "auto";
+  const cut = mode === "card" ? null
+            : mode === "cut"  ? heroCut
+            : (heroCut && !heroCut.rough) ? heroCut : null;
+  if (!cut){
+    if (heroFlat && mode !== "cut") drawHeroCard(heroFlat);
+    return;
+  }
   // A photo the catalogue flagged as a crop has no bottom to stand on, so let
   // it bleed off the frame instead of showing the amputation.
   const whole = heroWhole;
@@ -3290,12 +3323,11 @@ function ensureHero(){
   const row = PERFUMES.find(r => r.i === id);
   heroWhole = !!(row && row.k);
   heroCut = null; heroFlat = null;
-  cutFor(id).then(c => {
-    heroCut = c;
-    // the knockout refused this photo — keep it whole and show it on a card
-    if (!c) loadStorePhoto(id).then(im => { heroFlat = im; scheduleRender(); }).catch(() => {});
-    scheduleRender();
-  }).catch(() => { heroCut = null; });
+  // the whole photo is loaded either way: the knockout may refuse it, or he may
+  // look at the cut and decide it is wrong — no metric I tried tells those two
+  // apart reliably, and his eye does it in a second
+  loadStorePhoto(id).then(im => { heroFlat = im; scheduleRender(); }).catch(() => {});
+  cutFor(id).then(c => { heroCut = c; scheduleRender(); }).catch(() => { heroCut = null; });
 }
 
 function layoutShelf(){
@@ -3567,6 +3599,7 @@ function syncControls(){
    "feelSize","feelColor","feelTone","noteSize","noteColor","noteTone",
    "libCols","libRows","libColor","libTone","bgBlur","bgDim","heroW",
    "bgZoom","bgPanX","bgPanY","heroTilt","heroLift","shelfBlur"].forEach(k => set(k, state[k]));
+  set("heroMode", state.heroMode);
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
@@ -3867,6 +3900,7 @@ function wire(){
   bindSelect("shelfStyle", "shelfStyle");
   bindSelect("bgFlip", "bgFlip", v => { pushFraming(); return v === "1"; });
   bindSelect("heroPose", "heroPose");
+  bindSelect("heroMode", "heroMode");
 
   const sceneSel = $("#scene");
   SCENES.forEach(sc => {
