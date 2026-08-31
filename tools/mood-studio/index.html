@@ -2341,6 +2341,26 @@ const cutCache = new Map();
 // Knock the white studio ground out and crop to the product. The fill is
 // seeded from the border and spreads inward, so a white label on the bottle
 // survives — a plain luminance threshold would punch a hole through it.
+function boxBlur(src, w, h, r){
+  const t = new Float32Array(w * h), o = new Uint8Array(w * h);
+  const pre = new Float64Array(Math.max(w, h) + 1);
+  for (let y = 0; y < h; y++){
+    for (let x = 0; x < w; x++) pre[x + 1] = pre[x] + src[y*w + x];
+    for (let x = 0; x < w; x++){
+      const a = Math.max(0, x - r), b = Math.min(w - 1, x + r);
+      t[y*w + x] = (pre[b + 1] - pre[a]) / (b - a + 1);
+    }
+  }
+  for (let x = 0; x < w; x++){
+    for (let y = 0; y < h; y++) pre[y + 1] = pre[y] + t[y*w + x];
+    for (let y = 0; y < h; y++){
+      const a = Math.max(0, y - r), b = Math.min(h - 1, y + r);
+      o[y*w + x] = Math.round((pre[b + 1] - pre[a]) / (b - a + 1));
+    }
+  }
+  return o;
+}
+
 // Binary morphology over the background mask, separable, prefix-sum windows.
 // Outside the frame counts as background so the border band is not eroded away.
 function maskPass(src, dst, w, h, r, horiz, wantAll){
@@ -2358,18 +2378,6 @@ function maskPass(src, dst, w, h, r, horiz, wantAll){
                        : (hits + outside > 0 ? 1 : 0);
     }
   }
-}
-// Closing the OBJECT: dilate it, then shrink back. Seals an intrusion into the
-// silhouette narrower than 2r without moving the outline anywhere else.
-function closeObject(mask, w, h, r){
-  const inv = new Uint8Array(w * h);
-  for (let q = 0; q < inv.length; q++) inv[q] = mask[q] ? 0 : 1;
-  const a = new Uint8Array(w * h), b = new Uint8Array(w * h);
-  maskPass(inv, a, w, h, r, true,  false);   // grow the object
-  maskPass(a, b, w, h, r, false, false);
-  maskPass(b, a, w, h, r, true,  true);      // and pull it back
-  maskPass(a, b, w, h, r, false, true);
-  for (let q = 0; q < mask.length; q++) if (b[q]) mask[q] = 0;
 }
 function openMask(mask, w, h, r){
   const a = new Uint8Array(w * h), b = new Uint8Array(w * h);
@@ -2399,13 +2407,18 @@ function cutOut(img){
     const i = q * 4;
     L[q] = Math.min(d[i], d[i + 1], d[i + 2]);
   }
-  const EDGE = 4;
+  // Judge flatness on a slightly blurred copy. JPEG blocking — the thing that
+  // let the fill gouge channels through a white cap — averages away, and the
+  // studio's soft shadow ramps gently enough to cross, while a bottle's outline
+  // still falls fifty levels over four pixels and stops the fill dead.
+  const B = boxBlur(L, w, h, 4);
+  const EDGE = 7;
   const flat = q => {
-    const x = q % w, y = (q / w) | 0, v = L[q];
-    if (x > 0     && Math.abs(v - L[q - 1]) > EDGE) return false;
-    if (x < w - 1 && Math.abs(v - L[q + 1]) > EDGE) return false;
-    if (y > 0     && Math.abs(v - L[q - w]) > EDGE) return false;
-    if (y < h - 1 && Math.abs(v - L[q + w]) > EDGE) return false;
+    const x = q % w, y = (q / w) | 0, v = B[q];
+    if (x > 0     && Math.abs(v - B[q - 1]) > EDGE) return false;
+    if (x < w - 1 && Math.abs(v - B[q + 1]) > EDGE) return false;
+    if (y > 0     && Math.abs(v - B[q - w]) > EDGE) return false;
+    if (y < h - 1 && Math.abs(v - B[q + w]) > EDGE) return false;
     return true;
   };
   // Paper white is unambiguous and goes whatever its neighbours do — JPEG
@@ -2431,7 +2444,6 @@ function cutOut(img){
   // ground is never thin. Opening the mask — erode by r, then dilate back —
   // deletes any background thinner than 2r and leaves the sweep untouched.
   openMask(seen, w, h, 15);
-  closeObject(seen, w, h, 16);
 
   // Whatever still leaks gets put back: a knocked-out run walled in by bottle
   // on BOTH axes and short on both was never ground. A speck inside the glass
@@ -2471,6 +2483,40 @@ function cutOut(img){
     if (d[i + 3] > 8){ if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   }
   if (x1 < 0) return null;
+
+  // A white label on clear glass — Cologne Cédrat is the case — joins the paper
+  // through the glass, and the fill takes the label with it, leaving lettering
+  // floating in a hole. There is no threshold that separates 255 from 255, so
+  // instead the cut grades itself: count the knocked-out pixels walled in by
+  // bottle on both axes. A sound cut has almost none. Past 1.5% the bottle is
+  // being eaten, and returning null lets the caller show the photo whole rather
+  // than show the damage.
+  {
+    let inside = 0, kept = 0;
+    const opq = q => d[q * 4 + 3] > 128;
+    const hIn = new Uint8Array(w * h);
+    for (let y = y0; y <= y1; y++){
+      let x = x0;
+      while (x <= x1){
+        if (opq(y*w + x)){ x++; continue; }
+        let e = x; while (e <= x1 && !opq(y*w + e)) e++;
+        if (x > x0 && e <= x1) for (let k = x; k < e; k++) hIn[y*w + k] = 1;
+        x = e;
+      }
+    }
+    for (let x = x0; x <= x1; x++){
+      let y = y0;
+      while (y <= y1){
+        if (opq(y*w + x)){ kept++; y++; continue; }
+        let e = y; while (e <= y1 && !opq(e*w + x)) e++;
+        if (y > y0 && e <= y1) for (let k = y; k < e; k++) if (hIn[k*w + x]) inside++;
+        y = e;
+      }
+    }
+    for (let q = 0; q < w * h; q++) if (opq(q)) kept++;
+    if (inside > kept * 0.015) return null;
+  }
+
   wg.putImageData(box, 0, 0);
   const out = document.createElement("canvas");
   out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
@@ -3150,7 +3196,7 @@ function drawShelfHero(){
     return;
   }
   const cut = heroCut;
-  if (!cut) return;
+  if (!cut){ if (heroFlat) drawHeroCard(heroFlat); return; }
   // A photo the catalogue flagged as a crop has no bottom to stand on, so let
   // it bleed off the frame instead of showing the amputation.
   const whole = heroWhole;
@@ -3201,7 +3247,41 @@ function drawShelfHero(){
   ctx.restore();
 }
 
-let heroCut = null, heroId = "", heroWhole = false;
+// Some photos cannot be knocked out at all — a white label on clear glass on a
+// white sweep has no boundary to find. Pretending otherwise is how a bottle ends
+// up shredded, so those go on a card instead: the picture whole, on its own
+// paper, propped in front of the shelf. It reads as deliberate, which a torn
+// silhouette never does.
+function drawHeroCard(img){
+  const sc = clamp(Number(state.heroScale) || 1, 0.5, 2.2);
+  const cw = Math.min(430 * sc, W * 0.46);
+  const ch = Math.min(cw * (img.height / img.width), H * 0.62);
+  const cx = state.heroSide === "right" ? W - 250 : 250;
+  const lift = clamp(Number(state.heroLift) || 0, 0, 400);
+  const cy = H - 300 - lift - ch;
+  const tilt = (Number(state.heroTilt) || 0) * Math.PI / 180;
+  const r = 20;
+  ctx.save();
+  ctx.translate(cx, cy + ch / 2); ctx.rotate(tilt); ctx.translate(0, -ch / 2);
+  const round = (x, y, ww, hh) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + ww, y, x + ww, y + hh, r);
+    ctx.arcTo(x + ww, y + hh, x, y + hh, r); ctx.arcTo(x, y + hh, x, y, r);
+    ctx.arcTo(x, y, x + ww, y, r); ctx.closePath();
+  };
+  shadowOn(46, 0.55, 22);
+  ctx.fillStyle = "#F6F2EA";
+  round(-cw / 2 - 14, -14, cw + 28, ch + 28); ctx.fill();
+  shadowOff();
+  ctx.save(); round(-cw / 2, 0, cw, ch); ctx.clip();
+  ctx.drawImage(img, -cw / 2, 0, cw, ch);
+  ctx.restore();
+  ctx.strokeStyle = "rgba(0,0,0,.10)"; ctx.lineWidth = 1;
+  round(-cw / 2 - 14, -14, cw + 28, ch + 28); ctx.stroke();
+  ctx.restore();
+}
+
+let heroCut = null, heroId = "", heroWhole = false, heroFlat = null;
 function ensureHero(){
   const id = state.imgId;
   if (!id || photoImg) return;
@@ -3209,7 +3289,13 @@ function ensureHero(){
   heroId = id;
   const row = PERFUMES.find(r => r.i === id);
   heroWhole = !!(row && row.k);
-  cutFor(id).then(c => { heroCut = c; scheduleRender(); }).catch(() => { heroCut = null; });
+  heroCut = null; heroFlat = null;
+  cutFor(id).then(c => {
+    heroCut = c;
+    // the knockout refused this photo — keep it whole and show it on a card
+    if (!c) loadStorePhoto(id).then(im => { heroFlat = im; scheduleRender(); }).catch(() => {});
+    scheduleRender();
+  }).catch(() => { heroCut = null; });
 }
 
 function layoutShelf(){
