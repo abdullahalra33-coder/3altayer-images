@@ -2349,10 +2349,11 @@ function cutOut(img){
   const wg = work.getContext("2d", { willReadFrequently:true });
   wg.drawImage(img, 0, 0);
   const box = wg.getImageData(0, 0, w, h), d = box.data;
-  // Only the studio white goes. Relaxing this to also catch the pale grey
-  // reflection baked under some bottles shreds every clear-glass one, so the
-  // reflection stays — on a shelf it reads as a reflection anyway.
-  const near = i => d[i] > 232 && d[i+1] > 232 && d[i+2] > 232;
+
+  // Loose enough to take the studio's soft drop shadow with it — a strict
+  // test leaves a white band between bottle and shadow. It leaks into pale
+  // glass on the way, which the reclaim below undoes.
+  const near = i => d[i] > 226 && d[i+1] > 226 && d[i+2] > 226;
   const seen = new Uint8Array(w * h), st = [];
   const push = q => { if (!seen[q] && near(q * 4)){ seen[q] = 1; st.push(q); } };
   for (let x = 0; x < w; x++){ push(x); push((h - 1) * w + x); }
@@ -2364,13 +2365,44 @@ function cutOut(img){
     if (y > 0)     push(q - w);
     if (y < h - 1) push(q + w);
   }
+
+  // Reclaim the specks the fill still leaks into. A speck is walled in by
+  // bottle on BOTH axes and short on both; the pale band beside a bottle is
+  // walled in sideways too, but runs the whole height, so it is left alone.
+  const cap = Math.max(10, Math.round(Math.min(w, h) * 0.09));
+  const hIn = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++){
+    let x = 0;
+    while (x < w){
+      if (!seen[y*w + x]){ x++; continue; }
+      let e = x; while (e < w && seen[y*w + e]) e++;
+      if (x > 0 && e < w && e - x <= cap) for (let k = x; k < e; k++) hIn[y*w + k] = 1;
+      x = e;
+    }
+  }
+  for (let x = 0; x < w; x++){
+    let y = 0;
+    while (y < h){
+      if (!seen[y*w + x]){ y++; continue; }
+      let e = y; while (e < h && seen[e*w + x]) e++;
+      if (y > 0 && e < h && e - y <= cap)
+        for (let k = y; k < e; k++) if (hIn[k*w + x]) seen[k*w + x] = 0;
+      y = e;
+    }
+  }
+
   let x0 = w, x1 = -1, y0 = h, y1 = -1;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
     const q = y * w + x, i = q * 4;
     if (seen[q]){ d[i + 3] = 0; continue; }
-    // feather the rim, or a white halo survives against a dark ground
-    const mn = Math.min(d[i], d[i + 1], d[i + 2]);
-    if (mn > 214) d[i + 3] = Math.max(0, Math.round((246 - mn) / 32 * 255));
+    // Feather the rim only. Applied to every pale pixel it hollowed out the
+    // whole bottle, which is what made the clear ones look eaten.
+    const rim = (x > 0     && seen[q - 1]) || (x < w - 1 && seen[q + 1]) ||
+                (y > 0     && seen[q - w]) || (y < h - 1 && seen[q + w]);
+    if (rim){
+      const mn = Math.min(d[i], d[i + 1], d[i + 2]);
+      if (mn > 214) d[i + 3] = Math.max(0, Math.round((250 - mn) / 36 * 255));
+    }
     if (d[i + 3] > 8){ if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   }
   if (x1 < 0) return null;
