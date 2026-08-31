@@ -533,7 +533,13 @@ input[type="range"]::-moz-range-thumb{
               <button class="icon-btn" type="button" id="sceneNext">التالي ▶</button>
               <button class="icon-btn" type="button" id="sceneRand">عشوائي</button>
             </div>
-            <p class="hint">اختيار تصميم يعبّي كل المؤشرات — بعدها عدّل عليه زي ما تبي.</p>
+            <div class="slider-row" style="margin-top:10px">
+              <span class="lbl">غبش العطور اللي بالخلفية</span>
+              <span class="slider-val" id="shelfBlurVal">٢</span>
+              <input type="range" id="shelfBlur" min="0" max="16" step="1" value="2">
+            </div>
+            <p class="hint">اختيار تصميم يعبّي كل المؤشرات — بعدها عدّل عليه زي ما تبي.
+              وغبش صفر يخلّي عطور الخلفية واضحة تماماً.</p>
           </div>
           <p class="hint" id="inRoomHint">القارورة تنقص من خلفيتها البيضاء وتوقف داخل مكتبة عطور.
             ما تحتاج ترفع شي.</p>
@@ -742,11 +748,18 @@ input[type="range"]::-moz-range-thumb{
             <div class="field">
               <label for="shelfStyle">شكل الدولاب <span class="mini">(لشكل «المكتبة»)</span></label>
               <select id="shelfStyle">
-                <option value="wood">دولاب خشب دافئ</option>
+                <option value="wood">خشب دافئ</option>
                 <option value="black">أسود وذهبي</option>
-                <option value="neon">فترينة نيون</option>
-                <option value="glass">رف زجاج ذهبي</option>
-                <option value="bokeh">عمق ضبابي</option>
+                <option value="neon">نيون أزرق</option>
+                <option value="glass">زجاج ذهبي</option>
+                <option value="wine">نبيذي</option>
+                <option value="jade">أخضر داكن</option>
+                <option value="stone">رمادي حجري</option>
+                <option value="sand">رملي فاتح</option>
+                <option value="brass">نحاسي</option>
+                <option value="ivory">عاجي</option>
+                <option value="night">أزرق ليلي</option>
+                <option value="teal">أخضر مزرقّ</option>
               </select>
             </div>
           </div>
@@ -2610,7 +2623,7 @@ function deleteRoom(){
 // counter, spotlight, close) across five palettes and five distances. Picking one
 // writes its values into the sliders, so it is a starting point, not a template.
 const SCENE_KINDS = new Set(["shelves","wall","close","spot","vitrine","room","aisle","counter","pendants","window"]);
-const SCENES = [{"id":"s01","name":"١ · محل بمنظور · رملي · بعيد","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"room","shelfRows":7,"shelfPer":7,"shelfBlur":5,"shelfSeed":159,"heroSide":"left","heroPose":"held","heroScale":1.05,"heroTilt":-4,"heroLift":150,"panelMode":"bars","topGap":300}},{"id":"s02","name":"٢ · محل بمنظور · ليلي · متوسط","a":{"layout":"shelf","shelfStyle":"night","shelfKind":"room","shelfRows":5,"shelfPer":6,"shelfBlur":3,"shelfSeed":174,"heroSide":"left","heroPose":"held","heroScale":1.05,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":300}},{"id":"s03","name":"٣ · ممر عطور · رمادي · بعيد","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"aisle","shelfRows":8,"shelfPer":8,"shelfBlur":6,"shelfSeed":190,"heroSide":"left","heroPose":"shelf","heroScale":1,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":180}},{"id":"s04","name":"٤ · من وراء الزجاج · رمادي · بعيد","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"window","shelfRows":7,"shelfPer":7,"shelfBlur":5,"shelfSeed":166,"heroSide":"left","heroPose":"held","heroScale":1.15,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":300}},{"id":"s05","name":"٥ · فترينة · أسود وذهبي · بعيد","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"vitrine","shelfRows":7,"shelfPer":7,"shelfBlur":5,"shelfSeed":40,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s06","name":"٦ · جدار عطور · أسود وذهبي · ضبابي","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":9,"shelfSeed":16,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s07","name":"٧ · رفوف · نيون أزرق · متوسط","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"shelves","shelfRows":6,"shelfPer":6,"shelfBlur":3,"shelfSeed":9,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s08","name":"٨ · لمبات معلّقة · زجاج ذهبي · متوسط","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"pendants","shelfRows":6,"shelfPer":6,"shelfBlur":4,"shelfSeed":151,"heroSide":"left","heroPose":"held","heroScale":1.15,"heroTilt":-4,"heroLift":150,"panelMode":"bars","topGap":300}},{"id":"s09","name":"٩ · طاولة عرض · زجاج ذهبي · متوسط","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"counter","shelfRows":6,"shelfPer":6,"shelfBlur":4,"shelfSeed":163,"heroSide":"left","heroPose":"held","heroScale":1.3,"heroTilt":0,"heroLift":160,"panelMode":"bars","topGap":180}},{"id":"s10","name":"١٠ · ضوء واحد · أسود وذهبي · مسلّط","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":8,"shelfSeed":32,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s11","name":"١١ · رفوف · نبيذي · قريب","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"shelves","shelfRows":3,"shelfPer":4,"shelfBlur":7,"shelfSeed":11,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s12","name":"١٢ · رف قريب · أسود وذهبي · قريب جداً","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":8,"shelfSeed":24,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}}];
+const SCENES = [{"id":"s01","name":"١ · محل بمنظور · رملي · بعيد","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"room","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":159,"heroSide":"left","heroPose":"held","heroScale":1.05,"heroTilt":-4,"heroLift":150,"panelMode":"bars","topGap":300}},{"id":"s02","name":"٢ · محل بمنظور · ليلي · متوسط","a":{"layout":"shelf","shelfStyle":"night","shelfKind":"room","shelfRows":5,"shelfPer":6,"shelfBlur":0,"shelfSeed":174,"heroSide":"left","heroPose":"held","heroScale":1.05,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":300}},{"id":"s03","name":"٣ · ممر عطور · رمادي · بعيد","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"aisle","shelfRows":8,"shelfPer":8,"shelfBlur":2,"shelfSeed":190,"heroSide":"left","heroPose":"shelf","heroScale":1,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":180}},{"id":"s04","name":"٤ · من وراء الزجاج · رمادي · بعيد","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"window","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":166,"heroSide":"left","heroPose":"held","heroScale":1.15,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":300}},{"id":"s05","name":"٥ · فترينة · أسود وذهبي · بعيد","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"vitrine","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":40,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s06","name":"٦ · جدار عطور · أسود وذهبي · ضبابي","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":3,"shelfSeed":16,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s07","name":"٧ · رفوف · نيون أزرق · متوسط","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"shelves","shelfRows":6,"shelfPer":6,"shelfBlur":0,"shelfSeed":9,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s08","name":"٨ · لمبات معلّقة · زجاج ذهبي · متوسط","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"pendants","shelfRows":6,"shelfPer":6,"shelfBlur":0,"shelfSeed":151,"heroSide":"left","heroPose":"held","heroScale":1.15,"heroTilt":-4,"heroLift":150,"panelMode":"bars","topGap":300}},{"id":"s09","name":"٩ · طاولة عرض · زجاج ذهبي · متوسط","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"counter","shelfRows":6,"shelfPer":6,"shelfBlur":0,"shelfSeed":163,"heroSide":"left","heroPose":"held","heroScale":1.3,"heroTilt":0,"heroLift":160,"panelMode":"bars","topGap":180}},{"id":"s10","name":"١٠ · ضوء واحد · أسود وذهبي · مسلّط","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":2,"shelfSeed":32,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s11","name":"١١ · رفوف · نبيذي · قريب","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"shelves","shelfRows":3,"shelfPer":4,"shelfBlur":2,"shelfSeed":11,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s12","name":"١٢ · رف قريب · أسود وذهبي · قريب جداً","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":2,"shelfSeed":24,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}}];
 
 function applyScene(id){
   const sc = SCENES.find(x => x.id === id);
@@ -2718,7 +2731,7 @@ function buildRoom(st, kind, cuts, rnd, g){
       const k = hh / cut.height, dw = cut.width * k;
       g.save();
       g.globalAlpha = 0.5 + rnd() * 0.2;
-      try{ g.filter = "blur(7px)"; }catch(_){}
+      try{ g.filter = "blur(" + (clamp(Number(state.shelfBlur), 0, 30) + 1.5) + "px)"; }catch(_){}
       g.drawImage(cut, bx0 + bw * (q + 0.5) / 9 - dw / 2 + (rnd() - 0.5) * 14, y - hh, dw, hh);
       g.restore();
     }
@@ -2774,7 +2787,7 @@ function buildRoom(st, kind, cuts, rnd, g){
         const by = wallY(t, f);
         g.save();
         g.globalAlpha = (0.95 - t * 0.45) * (0.85 + rnd() * 0.3);
-        try{ g.filter = "blur(" + (clamp(Number(state.shelfBlur), 0, 30) + t * 6) + "px)"; }catch(_){}
+        try{ g.filter = "blur(" + (clamp(Number(state.shelfBlur), 0, 30) + t * 2.6) + "px)"; }catch(_){}
         g.drawImage(cut, bx - dw / 2, by - hh, dw, hh);
         g.restore();
       }
@@ -2849,8 +2862,10 @@ async function buildCabinet(){
     // shelves are not spaced to the millimetre, and neither are these
     const boardY = Math.round((r + 1) * rowH) - 24 + Math.round((rnd() - 0.5) * rowH * 0.14);
     const far = (rows - 1 - r) / Math.max(1, rows - 1);   // 1 at the top, 0 at the bottom
-    const blur = clamp(Number(state.shelfBlur), 0, 30) + far * 2.2;
-    const fade = 0.62 + (1 - far) * 0.30;
+    // depth softens the back rows, but only a little — at 2.2px per row the
+    // whole wall turned to smudges and he could not tell one bottle from another
+    const blur = clamp(Number(state.shelfBlur), 0, 30) + far * 0.9;
+    const fade = 0.74 + (1 - far) * 0.22;
 
     // light pools instead of a flat band — a strip lamp lights the middle of
     // the shelf and falls off toward the sides
@@ -2869,10 +2884,14 @@ async function buildCabinet(){
       if (rnd() < 0.11){ n++; continue; }               // somebody took one
       const cut = cuts[n++ % cuts.length];
       const scale = 0.74 + rnd() * 0.40;
-      const maxH = (rowH - 62) * scale, maxW = slot * 1.18;
+      // and the top row is bounded by the frame too, or its caps come off
+      const maxH = Math.min((rowH - 62) * scale, boardY - 10), maxW = slot * 1.02;
       const k = Math.min(maxW / cut.width, maxH / cut.height);
       const dw = cut.width * k, dh = cut.height * k;
-      const cx = slot * i + slot / 2 + (rnd() - 0.5) * slot * 0.55;
+      // a bottle half off the frame reads as a mistake, not as a real shelf
+      // running past the edge, so every one of them stays whole
+      const cx = clamp(slot * i + slot / 2 + (rnd() - 0.5) * slot * 0.55,
+                       dw / 2 + 4, W - dw / 2 - 4);
       const lean = (rnd() - 0.5) * 0.055;               // a couple of degrees
       const lit = 0.86 + rnd() * 0.28;                  // the light is not even either
 
@@ -3364,7 +3383,7 @@ function syncControls(){
    "blockX","blockY","noteX","noteY",
    "feelSize","feelColor","feelTone","noteSize","noteColor","noteTone",
    "libCols","libRows","libColor","libTone","bgBlur","bgDim","heroW",
-   "bgZoom","bgPanX","bgPanY","heroTilt","heroLift"].forEach(k => set(k, state[k]));
+   "bgZoom","bgPanX","bgPanY","heroTilt","heroLift","shelfBlur"].forEach(k => set(k, state[k]));
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
@@ -3404,6 +3423,7 @@ function updateRangeLabels(){
   $("#libRowsVal").textContent = toAr(Math.round(state.libRows));
   $("#libToneVal").textContent = toAr(Math.round(state.libTone));
   $("#bgBlurVal").textContent = toAr(Math.round(state.bgBlur));
+  $("#shelfBlurVal").textContent = toAr(Math.round(state.shelfBlur));
   $("#bgDimVal").textContent  = toAr(Math.round(state.bgDim)) + "٪";
   $("#heroWVal").textContent  = toAr(Math.round(state.heroW));
   $("#bgZoomVal").textContent = Number(state.bgZoom).toFixed(2);
@@ -3690,7 +3710,7 @@ function wire(){
    ["libCols","libCols"],["libRows","libRows"],["libTone","libTone"],
    ["bgBlur","bgBlur"],["bgDim","bgDim"],["heroW","heroW"],
    ["bgZoom","bgZoom"],["bgPanX","bgPanX"],["bgPanY","bgPanY"],
-   ["heroTilt","heroTilt"],["heroLift","heroLift"],
+   ["heroTilt","heroTilt"],["heroLift","heroLift"],["shelfBlur","shelfBlur"],
    ["longevity","longevity"],["sillage","sillage"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
