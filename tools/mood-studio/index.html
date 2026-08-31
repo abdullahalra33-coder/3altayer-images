@@ -2341,6 +2341,44 @@ const cutCache = new Map();
 // Knock the white studio ground out and crop to the product. The fill is
 // seeded from the border and spreads inward, so a white label on the bottle
 // survives — a plain luminance threshold would punch a hole through it.
+// Binary morphology over the background mask, separable, prefix-sum windows.
+// Outside the frame counts as background so the border band is not eroded away.
+function maskPass(src, dst, w, h, r, horiz, wantAll){
+  const n = horiz ? w : h, m = horiz ? h : w;
+  const pre = new Int32Array(n + 1);
+  for (let j = 0; j < m; j++){
+    for (let i = 0; i < n; i++)
+      pre[i + 1] = pre[i] + (src[horiz ? j*w + i : i*w + j] ? 1 : 0);
+    for (let i = 0; i < n; i++){
+      const a = Math.max(0, i - r), b = Math.min(n - 1, i + r);
+      const inside = b - a + 1, hits = pre[b + 1] - pre[a];
+      const outside = wantAll ? (2*r + 1) - inside : 0;   // erode only
+      const q = horiz ? j*w + i : i*w + j;
+      dst[q] = wantAll ? (hits + outside === 2*r + 1 ? 1 : 0)
+                       : (hits + outside > 0 ? 1 : 0);
+    }
+  }
+}
+// Closing the OBJECT: dilate it, then shrink back. Seals an intrusion into the
+// silhouette narrower than 2r without moving the outline anywhere else.
+function closeObject(mask, w, h, r){
+  const inv = new Uint8Array(w * h);
+  for (let q = 0; q < inv.length; q++) inv[q] = mask[q] ? 0 : 1;
+  const a = new Uint8Array(w * h), b = new Uint8Array(w * h);
+  maskPass(inv, a, w, h, r, true,  false);   // grow the object
+  maskPass(a, b, w, h, r, false, false);
+  maskPass(b, a, w, h, r, true,  true);      // and pull it back
+  maskPass(a, b, w, h, r, false, true);
+  for (let q = 0; q < mask.length; q++) if (b[q]) mask[q] = 0;
+}
+function openMask(mask, w, h, r){
+  const a = new Uint8Array(w * h), b = new Uint8Array(w * h);
+  maskPass(mask, a, w, h, r, true,  true);   // erode
+  maskPass(a, b, w, h, r, false, true);
+  maskPass(b, a, w, h, r, true,  false);     // dilate back
+  maskPass(a, mask, w, h, r, false, false);
+}
+
 function cutOut(img){
   const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
   if (!w || !h) return null;
@@ -2350,12 +2388,34 @@ function cutOut(img){
   wg.drawImage(img, 0, 0);
   const box = wg.getImageData(0, 0, w, h), d = box.data;
 
-  // Loose enough to take the studio's soft drop shadow with it — a strict
-  // test leaves a white band between bottle and shadow. It leaks into pale
-  // glass on the way, which the reclaim below undoes.
-  const near = i => d[i] > 226 && d[i+1] > 226 && d[i+2] > 226;
+  // Brightness alone cannot separate a white bottle from a white sweep — the
+  // Amouage body sits at 224 and its cap is brighter than the paper. What does
+  // separate them is flatness: the studio ground is literally flat (neighbour
+  // delta 0), while the bottle's contour steps 5-11 levels in one pixel. So the
+  // fill may only walk over ground that is both bright and flat, and it halts
+  // at the outline instead of pouring through it.
+  const L = new Uint8Array(w * h);
+  for (let q = 0; q < L.length; q++){
+    const i = q * 4;
+    L[q] = Math.min(d[i], d[i + 1], d[i + 2]);
+  }
+  const EDGE = 4;
+  const flat = q => {
+    const x = q % w, y = (q / w) | 0, v = L[q];
+    if (x > 0     && Math.abs(v - L[q - 1]) > EDGE) return false;
+    if (x < w - 1 && Math.abs(v - L[q + 1]) > EDGE) return false;
+    if (y > 0     && Math.abs(v - L[q - w]) > EDGE) return false;
+    if (y < h - 1 && Math.abs(v - L[q + w]) > EDGE) return false;
+    return true;
+  };
+  // Paper white is unambiguous and goes whatever its neighbours do — JPEG
+  // ringing beside the bottle otherwise blocks the fill in 8x8 blocks. Only
+  // the 226-250 band, where the drop shadow and the pale glass both live,
+  // has to prove it is flat before the fill may cross it.
+  const near = q => L[q] > 226 && flat(q);
+
   const seen = new Uint8Array(w * h), st = [];
-  const push = q => { if (!seen[q] && near(q * 4)){ seen[q] = 1; st.push(q); } };
+  const push = q => { if (!seen[q] && near(q)){ seen[q] = 1; st.push(q); } };
   for (let x = 0; x < w; x++){ push(x); push((h - 1) * w + x); }
   for (let y = 0; y < h; y++){ push(y * w); push(y * w + w - 1); }
   while (st.length){
@@ -2366,9 +2426,17 @@ function cutOut(img){
     if (y < h - 1) push(q + w);
   }
 
-  // Reclaim the specks the fill still leaks into. A speck is walled in by
-  // bottle on BOTH axes and short on both; the pale band beside a bottle is
-  // walled in sideways too, but runs the whole height, so it is left alone.
+  // A white cap on a white sweep differs by three levels, so the fill crosses
+  // into it along JPEG blocks and gouges thin channels out of the cap. Real
+  // ground is never thin. Opening the mask — erode by r, then dilate back —
+  // deletes any background thinner than 2r and leaves the sweep untouched.
+  openMask(seen, w, h, 15);
+  closeObject(seen, w, h, 16);
+
+  // Whatever still leaks gets put back: a knocked-out run walled in by bottle
+  // on BOTH axes and short on both was never ground. A speck inside the glass
+  // is enclosed each way; the pale band beside a bottle is enclosed sideways
+  // but runs its whole height, so it stays cut.
   const cap = Math.max(10, Math.round(Math.min(w, h) * 0.09));
   const hIn = new Uint8Array(w * h);
   for (let y = 0; y < h; y++){
@@ -2395,14 +2463,11 @@ function cutOut(img){
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
     const q = y * w + x, i = q * 4;
     if (seen[q]){ d[i + 3] = 0; continue; }
-    // Feather the rim only. Applied to every pale pixel it hollowed out the
-    // whole bottle, which is what made the clear ones look eaten.
+    // Feather the rim only. Run over every pale pixel it hollowed the bottle
+    // out, which is what turned the clear ones half transparent.
     const rim = (x > 0     && seen[q - 1]) || (x < w - 1 && seen[q + 1]) ||
                 (y > 0     && seen[q - w]) || (y < h - 1 && seen[q + w]);
-    if (rim){
-      const mn = Math.min(d[i], d[i + 1], d[i + 2]);
-      if (mn > 214) d[i + 3] = Math.max(0, Math.round((250 - mn) / 36 * 255));
-    }
+    if (rim && L[q] > 214) d[i + 3] = Math.max(0, Math.round((250 - L[q]) / 36 * 255));
     if (d[i + 3] > 8){ if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   }
   if (x1 < 0) return null;
