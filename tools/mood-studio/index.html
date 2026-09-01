@@ -417,6 +417,11 @@ input[type="range"]::-moz-range-thumb{
 }
 .offsite strong{ color:var(--danger); }
 .offsite a{ color:var(--danger); font-weight:600; white-space:nowrap; }
+.is-off{ opacity:.38; }
+body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
+.is-dim .lbl, .is-dim label{ opacity:.6; }
+.is-off input, .is-off select, .is-off textarea, .is-off button{ pointer-events:none; }
+.why{ font-size:11px; color:var(--ink3); padding:2px 0 0; }
 </style>
 <style>
 /* ---- v2 additions ---- */
@@ -470,6 +475,9 @@ input[type="range"]::-moz-range-thumb{
   <header class="topbar">
     <div class="wordmark">عالطاير</div>
     <div class="tagline">استوديو تقييم العطور &mdash; ستوري ١٠٨٠×١٩٢٠</div>
+    <button class="theme-btn" id="denseBtn" type="button" aria-label="عدد الخيارات">
+      <span id="denseTxt">الأساسيات</span>
+    </button>
     <button class="theme-btn" id="themeBtn" type="button" aria-label="تبديل الوضع">
       <span id="themeIcon">◐</span><span id="themeTxt">الوضع</span>
     </button>
@@ -1191,7 +1199,7 @@ const state = {
   bgBlur:6, bgDim:38, heroW:560, bgFlip:false, bgZoom:1, bgPanX:50, bgPanY:50,
   heroPose:"held", heroTilt:-7, heroLift:120,
   shelfKind:"shelves", shelfRows:6, shelfPer:6, shelfBlur:3,
-  heroSide:"left", heroScale:1, scene:"s01", heroMode:"auto", heroX:23
+  heroSide:"left", heroScale:1, scene:"s01", heroMode:"auto", heroX:23, dense:"basic"
 };
 
 let photoImg = null;
@@ -2284,7 +2292,7 @@ function toast(msg, kind){
 }
 let saveTimer = 0;
 function persist(){ clearTimeout(saveTimer); saveTimer = setTimeout(() => lsSet(LS_STATE, state), 400); }
-function onChange(){ updateSummaries(); persist(); scheduleRender(); }
+function onChange(){ updateSummaries(); refreshEnabled(); persist(); scheduleRender(); }
 
 function bind(id, key, tf){
   const el = $("#" + id); if (!el) return;
@@ -2873,7 +2881,10 @@ function applyScene(id){
   if (!sc) return;
   Object.assign(state, sc.a);
   state.scene = id;
-  cabinetBg = null; cabinetKey = ""; cabinetFlag("building");
+  cabinetBg = null; cabinetKey = "";
+  // only claim to be building one when one is actually going to be built — a
+  // room photo replaces the cabinet, and the flag used to stick on "building"
+  cabinetFlag(bgImg ? "ready" : "building");
   photoImg = null;
   syncControls(); onChange();
 }
@@ -3706,6 +3717,100 @@ function syncControls(){
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
 }
+// A control that cannot change the picture should not look like it can. Every
+// one of these is genuinely inert in the state it names — an uploaded-photo
+// framing slider with no uploaded photo, a cabinet control with a room photo
+// standing in front of the cabinet — so it is dimmed and switched off with the
+// reason written under it, instead of being clicked and doing nothing.
+const OFF_RULES = [
+  { ids:["zoom","pan","panX","heroW"],
+    off:() => !photoImg,
+    why:"يشتغل لمّا ترفع صورة العطر من «صورة اليوم»" },
+  { ids:["shelfBlur","shelfStyle","shelfNew"],
+    off:() => state.layout === "shelf" && !!bgImg,
+    why:"الغرفة اللي اخترتها تحلّ محلّ الدولاب المرسوم" },
+  { ids:["shade"],
+    off:() => state.layout === "shelf",
+    why:"اللوح والتدرّج يشتغلان مع شكل «العمود الزجاجي»" },
+  { ids:["scrim"],
+    off:() => state.layout === "shelf" || !state.shade,
+    why:"يشتغل مع «العمود الزجاجي» بعد تشغيل اللوح" },
+  { ids:["cardSide"],
+    off:() => state.layout === "shelf",
+    why:"في شكل «المكتبة» جهة الكلام تتبع جهة العطر" },
+  { ids:["dayNum"], soft:true,
+    off:() => !state.dayOn,
+    why:"شغّل «أظهر اليوم» أول" },
+  { ids:["snap"], soft:true,
+    off:() => !state.snapOn,
+    why:"شغّل «أظهر المعرّف» أول" },
+  { ids:["feelSize","feelColor","feelTone","feelBox"],
+    off:() => !String(state.feeling).trim(),
+    why:"اكتب الوصف أول" },
+  { ids:["noteSize","noteColor","noteTone","noteBox","noteX","noteY"],
+    off:() => !String(state.note).trim(),
+    why:"اكتب الملاحظة أول" },
+  { ids:["nTop","nHeart","nBase"], soft:true,
+    off:() => state.panelMode !== "full" && state.panelMode !== "notes",
+    why:"النوتات ما تظهر مع محتوى البطاقة الحالي — غيّره من «محتوى البطاقة»" },
+  { ids:["heroX","heroLift","heroScale","heroTilt","heroPose","heroMode"],
+    off:() => state.layout !== "shelf",
+    why:"يشتغل مع شكل «المكتبة»" },
+  { ids:["scene"],
+    off:() => false, why:"" }
+];
+// Seventy controls in one column is a wall, and most days he touches a dozen.
+// «الأساسيات» shows those; «كل الخيارات» shows the lot. Nothing is removed —
+// the advanced ones keep whatever he last set them to.
+const BASIC_IDS = new Set([
+  "storeSearch","scene","layout","panelMode",
+  "brand","pname","feeling","note",
+  "longevity","sillage",
+  "heroX","heroLift","heroScale",
+  "blockX","blockY","bgDim",
+  "dayOn","dayNum","snapOn","snap","handle","scoreLabel"
+]);
+function applyDensity(){
+  const basic = state.dense !== "all";
+  document.body.dataset.dense = basic ? "basic" : "all";
+  const txt = $("#denseTxt"); if (txt) txt.textContent = basic ? "الأساسيات" : "كل الخيارات";
+  document.querySelectorAll("input,select,textarea").forEach(el => {
+    const host = el.closest(".slider-row") || el.closest(".field");
+    if (host) host.dataset.adv = "1";
+  });
+  BASIC_IDS.forEach(id => {
+    const el = $("#" + id); if (!el) return;
+    let n = el;
+    while (n && n !== document.body){
+      if (n.dataset && n.dataset.adv === "1") n.dataset.adv = "0";
+      n = n.parentElement;
+    }
+  });
+  // the library builder makes a separate picture, not the story
+  const lib = $("#libChips"); const card = lib && lib.closest("details.card");
+  if (card) card.dataset.adv = basic ? "1" : "0";
+}
+
+function refreshEnabled(){
+  OFF_RULES.forEach(rule => {
+    let off = false;
+    try{ off = !!rule.off(); }catch(_){ off = false; }
+    rule.ids.forEach(id => {
+      const el = $("#" + id); if (!el) return;
+      el.disabled = off && !rule.soft;
+      const host = el.closest(".slider-row") || el.closest(".field") || el.parentElement;
+      if (!host) return;
+      host.classList.toggle("is-off", off && !rule.soft);
+      host.classList.toggle("is-dim", off && !!rule.soft);
+      let note = host.querySelector(".why");
+      if (off && rule.why){
+        if (!note){ note = document.createElement("p"); note.className = "why"; host.appendChild(note); }
+        note.textContent = rule.why;
+      } else if (note){ note.remove(); }
+    });
+  });
+}
+
 function updateRangeLabels(){
   $("#zoomVal").textContent  = Number(state.zoom).toFixed(2);
   $("#panVal").textContent   = toAr(Math.round(state.pan)) + "٪";
@@ -4035,10 +4140,22 @@ function wire(){
     });
   });
 
+  $("#denseBtn").addEventListener("click", () => {
+    state.dense = state.dense === "all" ? "basic" : "all";
+    applyDensity(); onChange();
+  });
+
   $("#resetPos").addEventListener("click", () => {
     state.blockX = state.blockY = state.noteX = state.noteY = 0;
     ["blockX","blockY","noteX","noteY"].forEach(k => { $("#" + k).value = 0; });
-    updateRangeLabels(); onChange();
+    // the bottle's own place and size are positions too, and the button did not
+    // touch them — put them back to whatever the room or the design asked for
+    const room = MY_ROOMS.find(r => r.id === roomId);
+    const scene = SCENES.find(x => x.id === state.scene);
+    const src = (room && room.hero) || (scene && scene.a) || null;
+    if (src) HERO_F.forEach(k => { if (src[k] !== undefined) state[k] = src[k]; });
+    syncControls(); updateRangeLabels(); onChange();
+    toast("رجّعت أماكن الكلام والعطر");
   });
 
   buildLibSearch();
@@ -4204,6 +4321,8 @@ function wire(){
   renderPlan();
   refreshDup();
   updateSummaries();
+  applyDensity();
+  refreshEnabled();
   render(false);
   probePhotos();
   await ensureFonts();
