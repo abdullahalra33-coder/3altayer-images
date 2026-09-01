@@ -2263,6 +2263,7 @@ function render(withGuides){
   const L = LAYOUTS[state.layout] || LAYOUTS.classic;
   if (state.layout === "shelf"){ if (!bgImg) ensureCabinet(); ensureHero(); }
   const bx = Number(state.blockX) || 0, by = Number(state.blockY) || 0;
+  blockOffX = bx; blockOffY = by;
 
   // the whole design — «اليوم ١» down to the last line of the card — moves
   // as one piece over the photo, which stays put
@@ -2287,6 +2288,8 @@ function render(withGuides){
   lastBottom = bottom;
   return bottom;
 }
+
+let blockOffX = 0, blockOffY = 0;
 
 let rafId = 0;
 function scheduleRender(){
@@ -3468,13 +3471,18 @@ function ensureHero(){
 }
 
 function layoutShelf(){
+  // The bottle and the wash behind the words are pinned to the frame; the words
+  // themselves ride the block offset. Dragging the bottle off its tray defeats
+  // the point of standing it there, and dragging the wash exposes its edge.
+  ctx.save();
+  ctx.translate(-blockOffX, -blockOffY);
   drawShelfHero();
-  // a wash behind the column, on whichever side it ended up
   const right = state.heroSide !== "right";
   const g2 = right ? ctx.createLinearGradient(W, 0, W - 820, 0)
                    : ctx.createLinearGradient(0, 0, 820, 0);
   g2.addColorStop(0, "rgba(8,6,4,.82)"); g2.addColorStop(1, "rgba(8,6,4,0)");
   ctx.fillStyle = g2; ctx.fillRect(right ? W - 820 : 0, 0, 820, H);
+  ctx.restore();
 
   const startY = SAFE_TOP + Number(state.topGap) + 44;
   const end = drawColumn(startY);
