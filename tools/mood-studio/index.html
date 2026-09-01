@@ -720,7 +720,8 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
             </div>
           </div>
 
-          <hr class="divider">
+          <hr class="divider" data-libsec="1">
+          <div data-libsec="1">
 
           <p class="hint">وإذا ما صوّرت شي بعد، الأداة تركّب لك دولاباً من صور منتجاتك — تقص القارورة
             من صورتها البيضاء وتوقفها على رف. شكلها مركّب، فهي بديل مؤقت لين تصوّر دولابك.
@@ -793,6 +794,7 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-primary" type="button" id="libUse">استعملها كخلفية</button>
             <button class="btn btn-ghost" type="button" id="libSave">احفظ الخلفية</button>
+          </div>
           </div>
         </div>
       </details>
@@ -1510,7 +1512,24 @@ function drawBackground(){
     const real = backdropCanvas();
     if (real) ctx.drawImage(real, 0, 0);
     else if (cabinetBg) ctx.drawImage(cabinetBg, 0, 0, W, H);
-    else { ctx.fillStyle = "#0E0A06"; ctx.fillRect(0, 0, W, H); }
+    else {
+      // building the cabinet cuts forty bottles out of forty photographs and
+      // takes several seconds. A black rectangle for that long reads as broken,
+      // so say what is happening instead.
+      ctx.fillStyle = "#0E0A06"; ctx.fillRect(0, 0, W, H);
+      // low in the frame, where the card never covers it, on its own plate so
+      // it stays readable whatever ends up behind
+      const msg = cabinetBusy ? "… أجهّز الخلفية" : "ما قدرت أجهّز الخلفية";
+      ctx.save();
+      ctx.font = '500 44px "Readex Pro", sans-serif';
+      ctx.direction = "rtl"; ctx.textAlign = "center";
+      const wTxt = ctx.measureText(msg).width, my = H * 0.88;
+      ctx.fillStyle = "rgba(0,0,0,.55)";
+      ctx.fillRect(W / 2 - wTxt / 2 - 34, my - 46, wTxt + 68, 76);
+      ctx.fillStyle = "rgba(255,255,255,.82)";
+      ctx.fillText(msg, W / 2, my + 6);
+      ctx.direction = "ltr"; ctx.restore();
+    }
     shadeBackground();
     return;
   }
@@ -2594,12 +2613,30 @@ function loadStorePhoto(id){
     im.src = "../../store_orig/" + id + ".jpg";
   });
 }
-async function cutFor(id){
-  if (cutCache.has(id)) return cutCache.get(id);
+// Cutting is the expensive part — a flood fill, two morphology passes and a
+// blur over a million pixels. A bottle on a shelf is drawn 150px wide, so doing
+// that at full size was paying for detail nobody sees: a nine-by-twelve cabinet
+// took twenty-one seconds and showed a black frame for all of it. Shelf bottles
+// are cut at 420px, the hero at full size, and each size is cached separately.
+function shrink(img, maxSide){
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  const k = Math.min(1, maxSide / Math.max(w, h));
+  if (k >= 1) return img;
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * k); c.height = Math.round(h * k);
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = true;
+  try{ g.imageSmoothingQuality = "high"; }catch(_){}
+  g.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+async function cutFor(id, maxSide){
+  const key = id + "@" + (maxSide || 0);
+  if (cutCache.has(key)) return cutCache.get(key);
   const img = await loadStorePhoto(id);
   if (!isExportable(img)) throw new Error("tainted");
-  const c = cutOut(img);
-  cutCache.set(id, c);
+  const c = cutOut(maxSide ? shrink(img, maxSide) : img);
+  cutCache.set(key, c);
   return c;
 }
 
@@ -2629,7 +2666,7 @@ async function buildLibrary(){
   if (!ids.length) throw new Error("empty");
   const cuts = [];
   for (const id of ids){
-    try { const c = await cutFor(id); if (c && !c.rough) cuts.push(c); } catch (e) { if (e.message === "tainted") throw e; }
+    try { const c = await cutFor(id, 520); if (c && !c.rough) cuts.push(c); } catch (e) { if (e.message === "tainted") throw e; }
   }
   if (!cuts.length) throw new Error("none");
 
@@ -2881,9 +2918,9 @@ function applyScene(id){
   if (!sc) return;
   Object.assign(state, sc.a);
   state.scene = id;
-  cabinetBg = null; cabinetKey = "";
-  // only claim to be building one when one is actually going to be built — a
-  // room photo replaces the cabinet, and the flag used to stick on "building"
+  cabinetKey = "";
+  // the previous cabinet stays on screen until the new one is ready — clearing
+  // it here turned the preview black for the seconds the build takes
   cabinetFlag(bgImg ? "ready" : "building");
   photoImg = null;
   syncControls(); onChange();
@@ -3081,13 +3118,15 @@ async function buildCabinet(){
   if (!pool.length) throw new Error("none");
   const rows = clamp(Number(state.shelfRows) || 6, 1, 9);
   const per  = clamp(Number(state.shelfPer)  || 6, 2, 12);
-  const want = rows * per + 6;
+  // thirty distinct bottles repeated read exactly the same at shelf size, and
+  // cost a quarter of the time
+  const want = Math.min(rows * per + 6, 30);
   const chosen = state.lib.length >= 6 ? state.lib
                : seededPick(pool, want, Number(state.shelfSeed) || 7).map(r => r.i);
 
   const cuts = [];
   for (const id of chosen){
-    try{ const cut = await cutFor(id); if (cut && !cut.rough) cuts.push(cut); }
+    try{ const cut = await cutFor(id, 420); if (cut && !cut.rough) cuts.push(cut); }
     catch(err){ if (err.message === "tainted") throw err; }
   }
   if (!cuts.length) throw new Error("none");
@@ -3270,6 +3309,7 @@ async function ensureCabinet(){
   if (cabinetBusy) return;
   cabinetBusy = true;
   cabinetFlag("building");
+  scheduleRender();
   try{
     cabinetBg = await buildCabinet();
     cabinetKey = key;
@@ -3763,7 +3803,7 @@ const OFF_RULES = [
 // «الأساسيات» shows those; «كل الخيارات» shows the lot. Nothing is removed —
 // the advanced ones keep whatever he last set them to.
 const BASIC_IDS = new Set([
-  "storeSearch","scene","layout","panelMode",
+  "storeSearch","scene","layout","panelMode","photo",
   "brand","pname","feeling","note",
   "longevity","sillage",
   "heroX","heroLift","heroScale",
@@ -3786,9 +3826,20 @@ function applyDensity(){
       n = n.parentElement;
     }
   });
-  // the library builder makes a separate picture, not the story
-  const lib = $("#libChips"); const card = lib && lib.closest("details.card");
-  if (card) card.dataset.adv = basic ? "1" : "0";
+  // containers without an input of their own never got un-marked, and his ten
+  // room backgrounds live in one — they disappeared from the basic panel
+  ["bgChips","critList","planList","archList"].forEach(id => {
+    let n = $("#" + id);
+    while (n && n !== document.body){
+      if (n.dataset && n.dataset.adv === "1") n.dataset.adv = "0";
+      n = n.parentElement;
+    }
+  });
+  // the library builder makes a separate picture, not the story — but it shares
+  // a card with his room photos, and hiding the card took the rooms with it
+  document.querySelectorAll('[data-libsec="1"]').forEach(el => {
+    el.dataset.adv = basic ? "1" : "0";
+  });
 }
 
 function refreshEnabled(){
