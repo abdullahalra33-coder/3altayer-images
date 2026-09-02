@@ -1013,9 +1013,13 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
                 <input type="range" id="feelTone" min="0" max="100" step="1" value="50">
               </div>
               <div class="field">
-                <label for="feelBox">تظليل بمربع</label>
-                <select id="feelBox"><option value="0">لا</option><option value="1">نعم</option></select>
+                <label for="feelBox">مربع خلف الوصف</label>
+                <select id="feelBox"><option value="0">بدون مربع</option><option value="1">مع مربع</option></select>
               </div>
+            </div>
+            <div class="field">
+              <label for="feelFace">خط الوصف</label>
+              <select id="feelFace"><option value="thin">تجوال خفيف</option><option value="normal">تجوال عادي</option><option value="bold">تجوال ثقيل</option><option value="readex">ريدكس</option><option value="readexb">ريدكس ثقيل</option></select>
             </div>
             <p class="hint">«درجة اللون» ٥٠ يعطيك اللون كما اخترته، أقل منه يغمّقه وأكثر يفتّحه.</p>
           </div>
@@ -1040,9 +1044,13 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
                 <input type="range" id="noteTone" min="0" max="100" step="1" value="50">
               </div>
               <div class="field">
-                <label for="noteBox">تظليل بمربع</label>
-                <select id="noteBox"><option value="0">لا</option><option value="1">نعم</option></select>
+                <label for="noteBox">مربع خلف الملاحظة</label>
+                <select id="noteBox"><option value="0">بدون مربع</option><option value="1">مع مربع</option></select>
               </div>
+            </div>
+            <div class="field">
+              <label for="noteFace">خط الملاحظة</label>
+              <select id="noteFace"><option value="thin">تجوال خفيف</option><option value="normal">تجوال عادي</option><option value="bold">تجوال ثقيل</option><option value="readex">ريدكس</option><option value="readexb">ريدكس ثقيل</option></select>
             </div>
             <div class="row">
               <div class="slider-row">
@@ -1194,8 +1202,8 @@ const state = {
   dayOn:false, dayNum:1,
   zoom:1, pan:50, panX:50, scrim:58,
   blockX:0, blockY:0, noteX:0, noteY:0, shade:false,
-  feelSize:46, feelColor:"#FFFFFF", feelTone:50, feelBox:false,
-  noteSize:31, noteColor:NOTE_RED,  noteTone:50, noteBox:false,
+  feelSize:46, feelColor:"#FFFFFF", feelTone:50, feelBox:false, feelFace:"thin",
+  noteSize:31, noteColor:NOTE_RED,  noteTone:50, noteBox:false, noteFace:"thin",
   lib:[], libCols:3, libRows:4, libColor:"#241A12", libTone:50, libShelf:true,
   shelfStyle:"wood", shelfSeed:7,
   bgBlur:6, bgDim:38, heroW:560, bgFlip:false, bgZoom:1, bgPanX:50, bgPanY:50,
@@ -1811,8 +1819,8 @@ function drawColumn(startY){
   if (feel){
     const size = clamp(Number(state.feelSize) || 46, 18, 80);
     const lh = Math.round(size * 1.39), col = textW();
-    const lf = '300 ' + size + 'px Tajawal, sans-serif',
-          bf = '400 ' + size + 'px Tajawal, sans-serif';
+    const lf = faceCss(state.feelFace, size),
+          bf = faceCss(state.feelFace === "thin" ? "normal" : state.feelFace, size);
     ctx.font = lf;
     const lw = ctx.measureText("الاحساس:").width + 16;
     const lines = wrapVar(feel, bf, col - lw, col);
@@ -1845,11 +1853,26 @@ function drawColumn(startY){
 let noteTop = null;
 function noteAnchor(top){ noteTop = top; return top; }
 
+// The two written lines each get their own face. Only Tajawal and Readex Pro
+// carry Arabic here, so the choice is those two across three weights rather
+// than a list of names half of which would fall back to the system font.
+const FACES = {
+  thin:   { name:"تجوال خفيف",  css:'300 %spx Tajawal, sans-serif' },
+  normal: { name:"تجوال عادي",  css:'400 %spx Tajawal, sans-serif' },
+  bold:   { name:"تجوال ثقيل",  css:'700 %spx Tajawal, sans-serif' },
+  readex: { name:"ريدكس",       css:'400 %spx "Readex Pro", sans-serif' },
+  readexb:{ name:"ريدكس ثقيل",  css:'600 %spx "Readex Pro", sans-serif' }
+};
+function faceCss(key, size){
+  const f = FACES[key] || FACES.thin;
+  return f.css.replace("%s", size);
+}
+
 function drawNoteBox(top){
   const txt = String(state.note).trim();
   if (!txt) return top;
   const size = clamp(Number(state.noteSize) || 31, 16, 80);
-  const font = '300 ' + size + 'px Tajawal, sans-serif';
+  const font = faceCss(state.noteFace, size);
   const lh = Math.round(size * 1.36), col = textW();
   const right = colRight();
   const lines = wrapLines(txt, font, col);
@@ -3756,6 +3779,7 @@ function syncControls(){
   set("topGap", String(state.topGap));
   const sh = $("#shade"); if (sh) sh.value = state.shade ? "1" : "0";
   const fb = $("#feelBox"); if (fb) fb.value = state.feelBox ? "1" : "0";
+  set("noteFace", state.noteFace); set("feelFace", state.feelFace);
   const nb = $("#noteBox"); if (nb) nb.value = state.noteBox ? "1" : "0";
   const ls = $("#libShelf"); if (ls) ls.value = state.libShelf ? "1" : "0";
   const bf = $("#bgFlip"); if (bf) bf.value = state.bgFlip ? "1" : "0";
@@ -3792,10 +3816,10 @@ const OFF_RULES = [
   { ids:["snap"], soft:true,
     off:() => !state.snapOn,
     why:"شغّل «أظهر المعرّف» أول" },
-  { ids:["feelSize","feelColor","feelTone","feelBox"],
+  { ids:["feelSize","feelColor","feelTone","feelBox","feelFace"],
     off:() => !String(state.feeling).trim(),
     why:"اكتب الوصف أول" },
-  { ids:["noteSize","noteColor","noteTone","noteBox","noteX","noteY"],
+  { ids:["noteSize","noteColor","noteTone","noteBox","noteFace","noteX","noteY"],
     off:() => !String(state.note).trim(),
     why:"اكتب الملاحظة أول" },
   { ids:["nTop","nHeart","nBase"], soft:true,
@@ -3815,6 +3839,8 @@ const BASIC_IDS = new Set([
   "brand","pname","feeling","note",
   "longevity","sillage",
   "heroX","heroLift","heroScale",
+  "feelSize","feelColor","feelBox","feelFace",
+  "noteSize","noteColor","noteBox","noteFace",
   "blockX","blockY","bgDim",
   "dayOn","dayNum","snapOn","snap","handle","scoreLabel"
 ]);
@@ -4155,6 +4181,8 @@ function wire(){
   bindSelect("shade", "shade", v => v === "1");
   bindSelect("feelBox", "feelBox", v => v === "1");
   bindSelect("noteBox", "noteBox", v => v === "1");
+  bindSelect("noteFace", "noteFace");
+  bindSelect("feelFace", "feelFace");
   bind("feelColor", "feelColor");
   bind("noteColor", "noteColor");
   bind("libColor", "libColor");
