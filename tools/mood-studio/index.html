@@ -683,9 +683,15 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
               <option value="auto">تلقائي — يقصّها، وإذا ما قدر يحطها على كرت</option>
               <option value="cut">مقصوصة دائماً</option>
               <option value="card">على كرت دائماً</option>
+              <option value="none">بدون صورة العطر — تفاصيل فقط</option>
             </select>
             <p class="hint">بعض صور المنتجات ما تنقص أبداً — قارورة بيضا على خلفية بيضا ما لها
-              حافة يعرفها الكود. إذا طلعت القارورة ناقصة أو مشقّقة، حوّلها «على كرت» وتطلع كاملة.</p>
+              حافة يعرفها الكود. إذا طلعت القارورة ناقصة أو مشقّقة، حوّلها «على كرت» وتطلع كاملة.<br>
+              «بدون صورة العطر» يشيل القارورة نهائياً ويخلّي الخلفية والكلام فقط. عشان يطلع فيه
+              كلام يستاهل، خلّ «محتوى البطاقة» على «الكل»، و«تحريك التصميم» يمين/يسار يوسّط
+              الكلام في الإطار — الاتجاه حسب الجهة اللي واقف فيها العمود.<br>
+              في الأشكال الأخرى الخلفية هي «صورة اليوم» نفسها — لو ما رفعت صورة، يطلع التصميم
+              على تدرّج بدون أي صورة عطر.</p>
           </div>
 
           <div class="field">
@@ -1551,11 +1557,15 @@ function drawBackground(){
   const g = ctx.createLinearGradient(0, 0, W, H);
   g.addColorStop(0, "#3A2D20"); g.addColorStop(0.5, "#231B12"); g.addColorStop(1, "#130F0A");
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "rgba(255,255,255,.18)";
-  ctx.font = '400 42px "Readex Pro", sans-serif';
-  ctx.direction = "rtl"; ctx.textAlign = "center";
-  ctx.fillText("ارفع صورة العطر", W / 2, H / 2);
-  ctx.direction = "ltr";
+  // دعوة للمعاينة فقط — لو انطبعت في الصورة المحفوظة، كل تصميم بدون صورة يطلع
+  // وعليه سطر «ارفع صورة العطر»
+  if (!exporting){
+    ctx.fillStyle = "rgba(255,255,255,.18)";
+    ctx.font = '400 42px "Readex Pro", sans-serif';
+    ctx.direction = "rtl"; ctx.textAlign = "center";
+    ctx.fillText("ارفع صورة العطر", W / 2, H / 2);
+    ctx.direction = "ltr";
+  }
   shadeBackground();
 }
 function drawScrims(){
@@ -1866,6 +1876,16 @@ const FACES = {
 function faceCss(key, size){
   const f = FACES[key] || FACES.thin;
   return f.css.replace("%s", size);
+}
+
+// how tall the note will be, without drawing it — render needs this to know
+// whether it is about to land on the signature line
+function noteHeight(){
+  const txt = String(state.note).trim();
+  if (!txt) return 0;
+  const size = clamp(Number(state.noteSize) || 31, 16, 80);
+  return wrapLines(txt, faceCss(state.noteFace, size), textW()).length
+         * Math.round(size * 1.36);
 }
 
 function drawNoteBox(top){
@@ -2277,6 +2297,7 @@ const LAYOUTS = {
 };
 
 let lastBottom = 0;
+let exporting = false;
 function render(withGuides){
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, W, H);
@@ -2284,7 +2305,7 @@ function render(withGuides){
   drawBackground();
 
   const L = LAYOUTS[state.layout] || LAYOUTS.classic;
-  if (state.layout === "shelf"){ if (!bgImg) ensureCabinet(); ensureHero(); }
+  if (state.layout === "shelf"){ if (!bgImg) ensureCabinet(); if (!noHero()) ensureHero(); }
   const bx = Number(state.blockX) || 0, by = Number(state.blockY) || 0;
   blockOffX = bx; blockOffY = by;
 
@@ -2300,9 +2321,14 @@ function render(withGuides){
   let bottom = bodyBottom + by;
   if (noteTop !== null){
     const nx = Number(state.noteX) || 0, ny = Number(state.noteY) || 0;
+    // التوقيع مرسوم على سطر ثابت فوق حافة الأمان، فبطاقة طويلة تنزّل الملاحظة
+    // عليه وتطلع الكلمتان فوق بعض. نرفع الملاحظة بالقدر اللازم فقط، وبحد ٦٠
+    // بكسل: أبعد من كذا معناها التصميم ممتلئ أصلاً وتحذير المنطقة الآمنة يكفي.
+    const over = (noteTop + by + ny + noteHeight()) - (H - SAFE_BOTTOM - 58);
+    const up = String(state.handle).trim() ? clamp(over, 0, 60) : 0;
     ctx.save();
-    ctx.translate(bx + nx, by + ny);
-    bottom = Math.max(bottom, drawNoteBox(noteTop) + by + ny);
+    ctx.translate(bx + nx, by + ny - up);
+    bottom = Math.max(bottom, drawNoteBox(noteTop) + by + ny - up);
     ctx.restore();
   }
 
@@ -3364,6 +3390,9 @@ function heroCX(){
 }
 
 function drawShelfHero(){
+  // «بدون صورة العطر»: لا قارورة ولا لوح صورة — الخلفية والكلام بس. أول سطر في
+  // الدالة عشان ما يطلع أي جزء من الصورة، لا المقصوصة ولا المرفوعة.
+  if (noHero()) return;
   const panelW = clamp(Number(state.heroW) || 560, 320, 720);
   const onRight = state.heroSide === "right";
   if (photoImg){
@@ -3493,19 +3522,31 @@ function ensureHero(){
   cutFor(id).then(c => { heroCut = c; scheduleRender(); }).catch(() => { heroCut = null; });
 }
 
-function layoutShelf(){
-  // The bottle and the wash behind the words are pinned to the frame; the words
-  // themselves ride the block offset. Dragging the bottle off its tray defeats
-  // the point of standing it there, and dragging the wash exposes its edge.
-  ctx.save();
-  ctx.translate(-blockOffX, -blockOffY);
-  drawShelfHero();
+// The dark that keeps the words readable over a lit cabinet. `over` runs the
+// solid end past the frame: when the wash travels with the words, sliding the
+// block would otherwise uncover a hard vertical edge onto bright shelves.
+function drawShelfWash(over){
   const right = state.heroSide !== "right";
   const g2 = right ? ctx.createLinearGradient(W, 0, W - 820, 0)
                    : ctx.createLinearGradient(0, 0, 820, 0);
   g2.addColorStop(0, "rgba(8,6,4,.82)"); g2.addColorStop(1, "rgba(8,6,4,0)");
-  ctx.fillStyle = g2; ctx.fillRect(right ? W - 820 : 0, 0, 820, H);
+  ctx.fillStyle = g2;
+  ctx.fillRect(right ? W - 820 : -over, 0, 820 + over, H);
+}
+
+function layoutShelf(){
+  // The bottle and the wash behind the words are pinned to the frame; the words
+  // themselves ride the block offset. Dragging the bottle off its tray defeats
+  // the point of standing it there, and dragging the wash exposes its edge.
+  const bare = noHero();
+  ctx.save();
+  ctx.translate(-blockOffX, -blockOffY);
+  drawShelfHero();
+  if (!bare) drawShelfWash(0);
   ctx.restore();
+  // بدون قارورة ما فيه شي يلزم الكلام جهة معيّنة، فالغبشة تمشي مع الكلام:
+  // يقدر يوسّط العمود بـ«تحريك التصميم» ويبقى مقروءاً بدل ما يطلع على رف مضوي
+  if (bare) drawShelfWash(520);
 
   const startY = SAFE_TOP + Number(state.topGap) + 44;
   const end = drawColumn(startY);
@@ -3789,15 +3830,26 @@ function syncControls(){
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
 }
+// «بدون صورة العطر»: الخيار اللي يشيل القارورة كلها ويخلّي التفاصيل وحدها
+function noHero(){
+  return state.layout === "shelf" && (state.heroMode || "auto") === "none";
+}
+const NO_HERO_WHY = "اخترت «بدون صورة العطر» في «شكل العطر في التصميم» — ما فيه صورة يتحكم فيها";
+
 // A control that cannot change the picture should not look like it can. Every
 // one of these is genuinely inert in the state it names — an uploaded-photo
 // framing slider with no uploaded photo, a cabinet control with a room photo
 // standing in front of the cabinet — so it is dimmed and switched off with the
 // reason written under it, instead of being clicked and doing nothing.
 const OFF_RULES = [
+  // حقل الرفع نفسه ما ينطفئ لأنه ما فيه صورة — هذا قفل على نفسه: ما تقدر ترفع
+  // إلا إذا رفعت. ينطفئ فقط لمّا يكون فيه خيار يقول «لا تطلع أي صورة».
+  { ids:["photoIn"],
+    off:() => noHero(),
+    why:NO_HERO_WHY },
   { ids:["zoom","pan","panX","heroW"],
-    off:() => !photoImg,
-    why:"يشتغل لمّا ترفع صورة العطر من «صورة اليوم»" },
+    off:() => noHero() || !photoImg,
+    why:() => noHero() ? NO_HERO_WHY : "يشتغل لمّا ترفع صورة العطر من «صورة اليوم»" },
   { ids:["shelfBlur","shelfStyle","shelfNew"],
     off:() => state.layout === "shelf" && !!bgImg,
     why:"الغرفة اللي اخترتها تحلّ محلّ الدولاب المرسوم" },
@@ -3825,9 +3877,12 @@ const OFF_RULES = [
   { ids:["nTop","nHeart","nBase"], soft:true,
     off:() => state.panelMode !== "full" && state.panelMode !== "notes",
     why:"النوتات ما تظهر مع محتوى البطاقة الحالي — غيّره من «محتوى البطاقة»" },
-  { ids:["heroX","heroLift","heroScale","heroTilt","heroPose","heroMode"],
+  { ids:["heroMode"],
     off:() => state.layout !== "shelf",
     why:"يشتغل مع شكل «المكتبة»" },
+  { ids:["heroX","heroLift","heroScale","heroTilt","heroPose"],
+    off:() => state.layout !== "shelf" || noHero(),
+    why:() => noHero() ? NO_HERO_WHY : "يشتغل مع شكل «المكتبة»" },
   { ids:["scene"],
     off:() => false, why:"" }
 ];
@@ -3835,7 +3890,7 @@ const OFF_RULES = [
 // «الأساسيات» shows those; «كل الخيارات» shows the lot. Nothing is removed —
 // the advanced ones keep whatever he last set them to.
 const BASIC_IDS = new Set([
-  "storeSearch","scene","layout","panelMode","photo",
+  "storeSearch","scene","layout","panelMode","photoIn","heroMode",
   "brand","pname","feeling","note",
   "longevity","sillage",
   "heroX","heroLift","heroScale",
@@ -3888,9 +3943,11 @@ function refreshEnabled(){
       host.classList.toggle("is-off", off && !rule.soft);
       host.classList.toggle("is-dim", off && !!rule.soft);
       let note = host.querySelector(".why");
-      if (off && rule.why){
+      // بعض الأسباب تختلف حسب الحالة — «ما رفعت صورة» غير «اخترت بدون صورة»
+      const why = typeof rule.why === "function" ? rule.why() : rule.why;
+      if (off && why){
         if (!note){ note = document.createElement("p"); note.className = "why"; host.appendChild(note); }
-        note.textContent = rule.why;
+        note.textContent = why;
       } else if (note){ note.remove(); }
     });
   });
@@ -4071,7 +4128,8 @@ async function saveImage(){
   const btn = $("#saveBtn"); btn.disabled = true;
   const prev = btn.textContent; btn.textContent = "… أجهّز";
   try{
-    render(false);
+    exporting = true;
+    try{ render(false); } finally { exporting = false; }
     const blob = await new Promise(r => cv.toBlob(r, "image/png"));
     if (!blob) throw new Error("encode");
     const name = ["3altayer", slug(state.brand), slug(state.pname), scoreOf().toFixed(2)]
