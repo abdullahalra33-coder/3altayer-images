@@ -158,6 +158,19 @@ ok('الرجوع لدولاب مرسوم يشيل الغرفة',
    && (await page.$eval('#scene', e => e.value)) === 's03' && swapped > 20000,
    swapped + ' بكسل تغيّرت');
 
+/* ١٢ — التقييم مؤشر واحد: يحرّك الرقم المرسوم، وما بقي من المعايير شي */
+const leftovers = await page.evaluate(() => ['critList','weightList','seedBtn','resetWeights','scoreBig']
+  .filter(id => document.getElementById(id)));
+await snap(page, 'score-before');
+await setRange(page, 'score', 6.4);
+await waitStable(page);
+await snap(page, 'score-after');
+const scoreTxt = await page.$eval('#scoreNote', e => e.textContent);
+const scoreMoved = await diff(page, 'score-before', 'score-after', 540, 1080);
+ok('مؤشر التقييم الواحد يغيّر الرقم على الصورة',
+   leftovers.length === 0 && scoreTxt === '6.40' && scoreMoved > 500,
+   scoreTxt + ' · ' + scoreMoved + ' بكسل · بقايا: ' + (leftovers.join(',') || 'لا'));
+
 ok('ما فيه أخطاء جافاسكربت', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await shot(page, 'test/last-frame.png');

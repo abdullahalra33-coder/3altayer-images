@@ -339,24 +339,6 @@ input[type="range"]::-moz-range-thumb{
   background:var(--amber); border:2px solid var(--panel);
   box-shadow:0 1px 4px rgba(0,0,0,.35);
 }
-.weight-in{ width:62px; padding:5px 7px; font-size:12.5px; text-align:center; font-variant-numeric:tabular-nums; }
-
-/* score readout */
-.score-box{
-  display:flex; align-items:center; gap:var(--sp4);
-  padding:var(--sp4);
-  background:var(--panel2); border:1px solid var(--line);
-  border-radius:var(--r-md);
-}
-.score-num{
-  font-family:"Readex Pro", system-ui, sans-serif; font-weight:700;
-  font-size:40px; line-height:1; color:var(--amber); letter-spacing:-.01em;
-  font-variant-numeric:tabular-nums; direction:ltr;
-}
-.score-meta{ display:flex; flex-direction:column; gap:2px; min-width:0; }
-.score-tier{ font-size:14px; font-weight:600; }
-.score-sub{ font-size:11.5px; color:var(--ink3); font-weight:300; }
-
 /* archive */
 .arch-list{ display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; }
 .arch-row{
@@ -961,26 +943,11 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
           <svg class="chev" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </summary>
         <div class="card-body">
-          <div class="score-box">
-            <div class="score-num" id="scoreBig">0.00</div>
-            <div class="score-meta">
-              <div class="score-tier" id="scoreTier">&mdash;</div>
-              <div class="score-sub" id="scoreSub">حرّك المعايير تحت</div>
-            </div>
+          <div class="slider-row">
+            <span class="lbl">التقييم من ١٠</span>
+            <span class="slider-val" id="scoreVal">8.50</span>
+            <input type="range" id="score" min="0" max="10" step="0.05" value="8.5">
           </div>
-          <p class="hint">الثبات والفوحان يتعبّون تلقائي من أرقام المجتمع (القيمة ×٢ +١)، والأربعة الباقية رأيك أنت. عدّل أي واحد.</p>
-          <div id="critList" style="display:flex;flex-direction:column;gap:14px"></div>
-          <button class="icon-btn" type="button" id="seedBtn" style="align-self:flex-start">
-            ↺ رجّع الثبات والفوحان لأرقام المجتمع
-          </button>
-          <details>
-            <summary style="cursor:pointer;font-size:12.5px;color:var(--ink3);padding:4px 0">
-              أوزان المعادلة — عدّلها على ذوقك
-            </summary>
-            <div id="weightList" style="display:flex;flex-direction:column;gap:8px;padding-top:10px"></div>
-            <div class="hint" id="weightSum" style="padding-top:8px"></div>
-            <button class="icon-btn" type="button" id="resetWeights" style="margin-top:8px">رجّع الأوزان الأصلية</button>
-          </details>
         </div>
       </details>
 
@@ -1168,24 +1135,6 @@ const DATA = {"d":{"g":["رجالي","للجنسين","للجنسين، الكل
 const PERFUMES = DATA.p;
 
 
-const CRITERIA = [
-  { key:"longevity",  ar:"الثبات",            hint:"كم ساعة يعيش على البشرة",      w:25 },
-  { key:"projection", ar:"الفوحان",            hint:"كم يوصل ريحه لمن حولك",         w:20 },
-  { key:"signature",  ar:"البصمة والتميّز",    hint:"مختلف ولا نسخة من غيره",       w:20 },
-  { key:"quality",    ar:"جودة المكوّنات",     hint:"نقاء الزيوت وإحساس الفخامة",   w:15 },
-  { key:"versatility",ar:"تنوّع الاستعمال",    hint:"يصلح لأكثر من مناسبة وموسم",   w:10 },
-  { key:"value",      ar:"السعر مقابل القيمة", hint:"يستاهل فلوسه ولا لا",           w:10 }
-];
-
-const TIERS = [
-  [9.30, "توقيع — خذه بعيون مغمّضة"],
-  [8.75, "ممتاز — من الصف الأول"],
-  [8.20, "قوي — يستاهل التجربة"],
-  [7.50, "جيّد — حلو بس مو استثنائي"],
-  [6.50, "عادي — جرّبه قبل ما تشتري"],
-  [0.00, "ضعيف — عدّه"]
-];
-
 const PYRAMID = [
   { key:"nTop",   ar:"المقدمة", color:"#E8C86A" },
   { key:"nHeart", ar:"القلب",   color:"#D98A9A" },
@@ -1202,8 +1151,8 @@ const state = {
   mGender:"", mSeason:"", mTime:"",
   fromStore:false, imgId:"",
   panelMode:"full", cardSide:"right", topGap:180, layout:"classic",
-  scores:Object.fromEntries(CRITERIA.map(c => [c.key, 8.5])),
-  weights:Object.fromEntries(CRITERIA.map(c => [c.key, c.w])),
+  // كانت ستة معايير بأوزان ومعادلة؛ طلب رقماً واحداً يرفعه وينزله بيده
+  score:8.5,
   scoreLabel:"التقييم", feeling:"", note:"", handle:"3altayer.com",
   snap:"ARS.300", snapOn:true, srcLabel:"تقييم مجتمع فراغرانتيكا",
   dayOn:false, dayNum:1,
@@ -1254,15 +1203,7 @@ function foldAr(t){
 const norm = t => foldAr(String(t || "").trim().toLowerCase()).replace(/\s+/g, " ");
 const ratedKey = (b, n) => norm(b) + "|" + norm(n);
 
-function scoreOf(){
-  let sum = 0, wsum = 0;
-  for (const c of CRITERIA){
-    const w = Number(state.weights[c.key]) || 0;
-    sum += (Number(state.scores[c.key]) || 0) * w; wsum += w;
-  }
-  return wsum > 0 ? sum / wsum : 0;
-}
-const tierOf = v => (TIERS.find(t => v >= t[0]) || TIERS[TIERS.length - 1])[1];
+function scoreOf(){ return clamp(Number(state.score) || 0, 0, 10); }
 
 function slug(s){
   return String(s || "").trim().toLowerCase()
@@ -2386,16 +2327,6 @@ function haystacks(){
   return HAY;
 }
 
-// Longevity and sillage are the two criteria Fragrantica already measures.
-// Its 5-point values map onto the 10-point sliders as v*2+1; the other four
-// are judgement calls and keep their defaults.
-function seedFromCommunity(){
-  let n = 0;
-  if (state.longevity > 0){ state.scores.longevity  = clamp(state.longevity * 2 + 1, 0, 10); n++; }
-  if (state.sillage   > 0){ state.scores.projection = clamp(state.sillage   * 2 + 1, 0, 10); n++; }
-  return n;
-}
-
 function applyRecord(r){
   Object.assign(state, {
     brand:r.b, pname:r.n,
@@ -2405,7 +2336,6 @@ function applyRecord(r){
     mGender:dictVal("g", r.g), mSeason:dictVal("e", r.e), mTime:dictVal("w", r.w),
     imgId:r.i || "", fromStore:true
   });
-  const seeded = seedFromCommunity();
   syncControls(); refreshDup(); onChange();
   const got = [];
   if (r.t || r.m || r.z) got.push("النوتات");
@@ -2414,7 +2344,6 @@ function applyRecord(r){
   if (r.c) got.push("فراغرانتيكا");
   if (r.e) got.push("الموسم");
   if (r.u) got.push("المُعطِّر");
-  if (seeded) got.push("وعبّيت " + toAr(seeded) + " من مؤشراتك");
   toast(got.length ? "انسحب: " + got.join(" · ") : "ما فيه تفاصيل لهذا العطر — عبّي يدوي",
         got.length ? "ok" : "err");
 }
@@ -3759,53 +3688,8 @@ function refreshDup(){
 }
 
 /* ---------- criteria ---------- */
-function buildCriteria(){
-  const host = $("#critList"); host.textContent = "";
-  CRITERIA.forEach(c => {
-    const row = document.createElement("div"); row.className = "slider-row";
-    const lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = c.ar;
-    const tip = document.createElement("span"); tip.className = "hint";
-    tip.style.fontWeight = "300"; tip.textContent = " — " + c.hint;
-    lbl.appendChild(tip);
-    const val = document.createElement("span"); val.className = "slider-val";
-    val.textContent = Number(state.scores[c.key]).toFixed(1);
-    const rng = document.createElement("input");
-    rng.type = "range"; rng.min = "0"; rng.max = "10"; rng.step = "0.1";
-    rng.value = state.scores[c.key]; rng.setAttribute("aria-label", c.ar);
-    rng.addEventListener("input", () => {
-      state.scores[c.key] = parseFloat(rng.value);
-      val.textContent = parseFloat(rng.value).toFixed(1);
-      updateScore(); onChange();
-    });
-    row.append(lbl, val, rng); host.appendChild(row);
-  });
-  const wh = $("#weightList"); wh.textContent = "";
-  CRITERIA.forEach(c => {
-    const row = document.createElement("div");
-    row.style.cssText = "display:flex;align-items:center;gap:10px";
-    const l = document.createElement("span"); l.className = "lbl"; l.style.flex = "1"; l.textContent = c.ar;
-    const i = document.createElement("input");
-    i.type = "number"; i.className = "weight-in"; i.min = "0"; i.max = "100"; i.step = "1";
-    i.value = state.weights[c.key]; i.setAttribute("aria-label", "وزن " + c.ar);
-    i.addEventListener("input", () => {
-      state.weights[c.key] = clamp(parseFloat(i.value) || 0, 0, 100);
-      updateScore(); updateWeightSum(); onChange();
-    });
-    row.append(l, i); wh.appendChild(row);
-  });
-  updateWeightSum();
-}
-function updateWeightSum(){
-  const sum = CRITERIA.reduce((a, c) => a + (Number(state.weights[c.key]) || 0), 0);
-  const el = $("#weightSum");
-  el.textContent = "المجموع: " + toAr(sum) + (sum === 100 ? " ✓" : " — الحساب يظبط نفسه على أي مجموع");
-  el.style.color = sum === 100 ? "var(--sage)" : "var(--ink3)";
-}
 function updateScore(){
-  const v = scoreOf();
-  $("#scoreBig").textContent = v.toFixed(2);
-  $("#scoreTier").textContent = tierOf(v);
-  $("#scoreSub").textContent = "من ١٠ — متوسط موزون لـ" + toAr(CRITERIA.length) + " معايير";
+  const el = $("#scoreVal"); if (el) el.textContent = scoreOf().toFixed(2);
 }
 
 // The glass panel's content switch only applies to the classic layout.
@@ -3875,7 +3759,7 @@ function syncControls(){
   fillSceneSelect();
   renderLibChips();
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
-  buildCriteria(); updateScore(); updateRangeLabels();
+  set("score", state.score); updateScore(); updateRangeLabels();
 }
 // «بدون صورة العطر»: الخيار اللي يشيل القارورة كلها ويخلّي التفاصيل وحدها
 function noHero(){
@@ -3939,7 +3823,7 @@ const OFF_RULES = [
 const BASIC_IDS = new Set([
   "storeSearch","scene","layout","panelMode","photoIn","heroMode",
   "brand","pname","feeling","note",
-  "longevity","sillage",
+  "longevity","sillage","score",
   "heroX","heroLift","heroScale",
   "feelSize","feelColor","feelBox","feelFace",
   "noteSize","noteColor","noteBox","noteFace",
@@ -3964,7 +3848,7 @@ function applyDensity(){
   });
   // containers without an input of their own never got un-marked, and his ten
   // room backgrounds live in one — they disappeared from the basic panel
-  ["bgChips","critList","planList","archList"].forEach(id => {
+  ["bgChips","planList","archList"].forEach(id => {
     let n = $("#" + id);
     while (n && n !== document.body){
       if (n.dataset && n.dataset.adv === "1") n.dataset.adv = "0";
@@ -4001,6 +3885,7 @@ function refreshEnabled(){
 }
 
 function updateRangeLabels(){
+  updateScore();
   $("#zoomVal").textContent  = Number(state.zoom).toFixed(2);
   $("#panVal").textContent   = toAr(Math.round(state.pan)) + "٪";
   $("#panXVal").textContent  = toAr(Math.round(state.panX)) + "٪";
@@ -4048,16 +3933,12 @@ function snapshot(){
     longevity:state.longevity, sillage:state.sillage, community:state.community,
     mGender:state.mGender, mSeason:state.mSeason, mTime:state.mTime,
     score:+scoreOf().toFixed(2),
-    scores:Object.assign({}, state.scores),
-    weights:Object.assign({}, state.weights),
     feeling:state.feeling, note:state.note, scoreLabel:state.scoreLabel,
     imgId:state.imgId
   };
 }
 function loadEntry(e){
   Object.keys(state).forEach(k => { if (e[k] !== undefined) state[k] = e[k]; });
-  if (e.scores)  state.scores  = Object.assign({}, state.scores, e.scores);
-  if (e.weights) state.weights = Object.assign({}, state.weights, e.weights);
   if (e.day) state.dayNum = e.day;
   syncControls(); refreshDup(); onChange();
   toast("رجّعت التقييم — بس ارفع الصورة");
@@ -4191,7 +4072,7 @@ async function exportArchive(){
   if (!archive.length){ toast("الأرشيف فاضي", "err"); return; }
   const st = await offerFile("today-mood-archive.json", JSON.stringify(
     { app:"today-mood", version:2, exportedAt:new Date().toISOString(),
-      weights:state.weights, ratings:archive }, null, 2));
+      ratings:archive }, null, 2));
   if (st === "saved") toast("انحفظت نسخة الأرشيف ✓"); else toast(MSG[st][0], MSG[st][1]);
 }
 function importArchive(file){
@@ -4205,8 +4086,7 @@ function importArchive(file){
       const seen = new Set(archive.map(e => e.id));
       let n = 0;
       rows.forEach(e => { if (e && e.id && !seen.has(e.id)){ seen.add(e.id); archive.push(e); n++; } });
-      if (data.weights) Object.assign(state.weights, data.weights);
-      lsSet(LS_ARCH, archive); renderArchive(); buildCriteria(); updateScore(); onChange();
+      lsSet(LS_ARCH, archive); renderArchive(); onChange();
       toast("انضاف " + toAr(n) + " تقييم");
     }catch(_){ toast("الملف مو صالح", "err"); }
   };
@@ -4228,9 +4108,17 @@ function restore(){
   const saved = lsGet(LS_STATE, null);
   if (saved && typeof saved === "object"){
     for (const k of Object.keys(state)){
-      if (saved[k] === undefined) continue;
-      if (k === "scores" || k === "weights") Object.assign(state[k], saved[k]);
-      else state[k] = saved[k];
+      if (saved[k] !== undefined) state[k] = saved[k];
+    }
+    // حالة محفوظة من أيام المعادلة: نحسب رقمها مرة وحدة حتى ما يقفز تقييم
+    // اليوم اللي كان على الشاشة
+    if (saved.score === undefined && saved.scores && saved.weights){
+      let sum = 0, wsum = 0;
+      for (const k of Object.keys(saved.scores)){
+        const w = Number(saved.weights[k]) || 0;
+        sum += (Number(saved.scores[k]) || 0) * w; wsum += w;
+      }
+      if (wsum > 0) state.score = Math.round(sum / wsum * 20) / 20;
     }
   }
   // the shortlist dropped the pattern backdrops and renumbered the rest, so a
@@ -4325,7 +4213,7 @@ function wire(){
    ["bgBlur","bgBlur"],["bgDim","bgDim"],["heroW","heroW"],
    ["bgZoom","bgZoom"],["bgPanX","bgPanX"],["bgPanY","bgPanY"],
    ["heroTilt","heroTilt"],["heroLift","heroLift"],["shelfBlur","shelfBlur"],["heroX","heroX"],["heroScale","heroScale"],
-   ["longevity","longevity"],["sillage","sillage"]].forEach(([id, key]) => {
+   ["longevity","longevity"],["sillage","sillage"],["score","score"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
       state[key] = parseFloat(el.value); updateRangeLabels();
@@ -4462,16 +4350,6 @@ function wire(){
     showGuides = !showGuides;
     $("#guideBtn").setAttribute("aria-pressed", String(showGuides));
     render(showGuides);
-  });
-  $("#seedBtn").addEventListener("click", () => {
-    const n = seedFromCommunity();
-    if (!n){ toast("ما فيه أرقام مجتمع لهذا العطر", "err"); return; }
-    buildCriteria(); updateScore(); onChange();
-    toast("رجّعت " + toAr(n) + " مؤشرات لأرقام المجتمع");
-  });
-  $("#resetWeights").addEventListener("click", () => {
-    CRITERIA.forEach(c => { state.weights[c.key] = c.w; });
-    buildCriteria(); updateScore(); onChange(); toast("رجّعت الأوزان الأصلية");
   });
   $("#planFill").addEventListener("click", () => {
     const picks = pickForQueue(7);
