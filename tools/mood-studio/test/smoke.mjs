@@ -158,6 +158,21 @@ ok('الرجوع لدولاب مرسوم يشيل الغرفة',
    && (await page.$eval('#scene', e => e.value)) === 's03' && swapped > 20000,
    swapped + ' بكسل تغيّرت');
 
+/* ١٢ب — عدد المقيّمين يطلع بين قوسين جنب تقييم المجتمع، ويختفي لمّا يُمسح */
+await page.selectOption('#layout', 'classic');
+await waitStable(page);
+await snap(page, 'votes-off');
+await page.fill('#votes', '1234');
+await waitStable(page);
+await snap(page, 'votes-on');
+const votesInk = await diff(page, 'votes-off', 'votes-on', 0, 1080);
+await page.fill('#votes', '');
+await waitStable(page);
+await snap(page, 'votes-cleared');
+const votesGone = await diff(page, 'votes-off', 'votes-cleared', 0, 1080);
+ok('عدد المقيّمين يُرسم جنب تقييم المجتمع ويختفي لمّا يُمسح',
+   votesInk > 300 && votesGone === 0, votesInk + ' بكسل ظهرت، ' + votesGone + ' بقيت بعد المسح');
+
 /* ١٢ — التقييم مؤشر واحد: يحرّك الرقم المرسوم، وما بقي من المعايير شي */
 const leftovers = await page.evaluate(() => ['critList','weightList','seedBtn','resetWeights','scoreBig']
   .filter(id => document.getElementById(id)));

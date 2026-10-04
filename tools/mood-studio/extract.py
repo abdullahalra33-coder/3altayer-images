@@ -81,6 +81,15 @@ def parse(desc, name, brand_raw):
     for key, lab in (("l","الثبات"), ("p","الفوحان"), ("c","تقييم المجتمع")):
         v = stat(lab)
         if v: out[key] = v
+    # عدد المقيّمين: «من 162 تقييم على Fragrantica» في صندوق تقييم المجتمع نفسه
+    for e in leaves:
+        if (e.text_content() or "").strip() == "تقييم المجتمع":
+            box = e.getparent()
+            mv = re.search(r'من\s*([\d,]+)\s*تقييم', box.text_content() or "") if box is not None else None
+            if mv:
+                n = int(mv.group(1).replace(",", ""))
+                if n > 0: out["v"] = n
+            break
 
     for e in leaves:
         if re.match(r'^الأنسب\s*لـ', (e.text_content() or "").strip()):
@@ -221,7 +230,7 @@ import os
 print(f"rows read: {total} | unique perfumes: {len(rows)} | skipped: {skipped}")
 print("json size:", os.path.getsize('perfumes.json'), "bytes")
 have = lambda k: sum(1 for r in rows if r.get(k) is not None)
-for k, lab in (("i","repo image"),("t","pyramid top"),("l","longevity"),("p","sillage"),("c","community"),
+for k, lab in (("i","repo image"),("t","pyramid top"),("l","longevity"),("p","sillage"),("c","community"),("v","votes"),
                ("e","season"),("g","gender"),("u","perfumer"),("f","family"),("y","year"),("r","price")):
     print(f"  {lab:14} {have(k):5}  ({have(k)*100//len(rows)}%)")
 from collections import Counter

@@ -841,6 +841,11 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
             </div>
           </div>
           <div class="field">
+            <label for="votes">عدد المقيّمين على فراغرانتيكا</label>
+            <input type="number" id="votes" min="0" step="1" inputmode="numeric" dir="ltr" placeholder="162">
+            <p class="hint">يطلع بين قوسين جنب تقييم المجتمع. يتعبّى من الكتالوج لو كان فيه، وإلا انسخه من صفحة المنتج.</p>
+          </div>
+          <div class="field">
             <label for="srcLabel">عنوان مصدر الأرقام</label>
             <input type="text" id="srcLabel" maxlength="40">
             <p class="hint">يظهر فوق الثلاثة على البطاقة. صفحات منتجاتك تنسب الثبات والفوحان لـ Parfumo وتقييم المجتمع لـ Fragrantica — عدّل النص لو تبيه أدق.</p>
@@ -1117,7 +1122,7 @@ const PYRAMID = [
 const state = {
   brand:"", pname:"", perfumer:"", family:"", year:"",
   nTop:"", nHeart:"", nBase:"",
-  longevity:0, sillage:0, community:0,
+  longevity:0, sillage:0, community:0, votes:0,
   mGender:"", mSeason:"", mTime:"",
   fromStore:false, imgId:"",
   panelMode:"full", cardSide:"right", topGap:180, layout:"classic",
@@ -1537,7 +1542,7 @@ function layoutPanel(){
     if (ops.length){ h += 10; ops.push({ k:"rule", y:h }); h += 26; }
     const src = String(state.srcLabel).trim();
     if (src){ ops.push({ k:"srcLabel", y:h, text:src }); h += 34; }
-    if (state.community > 0){ ops.push({ k:"headline", y:h, v:state.community }); h += 50; }
+    if (state.community > 0){ ops.push({ k:"headline", y:h, v:state.community, n:state.votes }); h += 50; }
     if (state.longevity > 0){ ops.push({ k:"bar", y:h, label:"الثبات",  v:state.longevity, w:innerW }); h += 58; }
     if (state.sillage   > 0){ ops.push({ k:"bar", y:h, label:"الفوحان", v:state.sillage,   w:innerW }); h += 58; }
     h -= 8;
@@ -1605,6 +1610,7 @@ function drawPanel(top, layout){
       ctx.font = '500 44px Tajawal, sans-serif';
       ctx.fillStyle = rgbStr(hue);
       ctx.fillText(op.v.toFixed(1), right - sw, y + 34);
+      drawVotes(op.n, right - sw - ctx.measureText(op.v.toFixed(1)).width - 14, y + 34, 24);
     } else if (op.k === "bar"){
       ctx.font = '400 30px Tajawal, sans-serif';
       ctx.direction = "rtl"; ctx.textAlign = "right";
@@ -1904,6 +1910,16 @@ function drawHead(right, y, opts){
   return y;
 }
 
+// عدد المقيّمين بين قوسين على يسار رقم المجتمع — صغير وباهت، معلومة لا عنوان.
+// يُرسم من اليمين عند x (الذي ينتهي عنده الرقم) حتى لا يلمسه مهما طال العدد.
+function drawVotes(n, x, y, size){
+  n = Math.round(Number(n) || 0); if (!(n > 0)) return;
+  ctx.font = '400 ' + size + 'px Tajawal, sans-serif';
+  ctx.direction = "ltr"; ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(255,255,255,.5)";
+  ctx.fillText("(" + n.toLocaleString("en-US") + ")", x, y);
+}
+
 // The community block: source line, headline score, then the two bars.
 function drawCommunity(x, right, y, w){
   const src = String(state.srcLabel).trim();
@@ -1925,6 +1941,7 @@ function drawCommunity(x, right, y, w){
     const sw = ctx.measureText("/ 5").width + 10;
     ctx.font = '500 52px Tajawal, sans-serif';
     ctx.fillStyle = rgbStr(hue); ctx.fillText(state.community.toFixed(1), right - sw, y);
+    drawVotes(state.votes, right - sw - ctx.measureText(state.community.toFixed(1)).width - 16, y, 27);
     shadowOff();
     y += 54;
   }
@@ -2301,7 +2318,7 @@ function applyRecord(r){
     brand:r.b, pname:r.n,
     perfumer:r.u || "", family:dictVal("f", r.f), year:r.y || "",
     nTop:r.t || "", nHeart:r.m || "", nBase:r.z || "",
-    longevity:r.l || 0, sillage:r.p || 0, community:r.c || 0,
+    longevity:r.l || 0, sillage:r.p || 0, community:r.c || 0, votes:r.v || 0,
     mGender:dictVal("g", r.g), mSeason:dictVal("e", r.e), mTime:dictVal("w", r.w),
     imgId:r.i || "", fromStore:true
   });
@@ -2310,7 +2327,7 @@ function applyRecord(r){
   if (r.t || r.m || r.z) got.push("النوتات");
   if (r.l) got.push("الثبات");
   if (r.p) got.push("الفوحان");
-  if (r.c) got.push("فراغرانتيكا");
+  if (r.c) got.push("فراغرانتيكا" + (r.v ? " (" + r.v + " مقيّم)" : ""));
   if (r.e) got.push("الموسم");
   if (r.u) got.push("المُعطِّر");
   toast(got.length ? "انسحب: " + got.join(" · ") : "ما فيه تفاصيل لهذا العطر — عبّي يدوي",
@@ -3713,6 +3730,7 @@ function syncControls(){
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
   set("longevity", state.longevity); set("sillage", state.sillage);
+  set("votes", state.votes > 0 ? state.votes : "");
   set("panelMode", state.panelMode); set("cardSide", state.cardSide);
   set("layout", state.layout);
   set("shelfStyle", state.shelfStyle);
@@ -3762,6 +3780,9 @@ const OFF_RULES = [
   { ids:["cardSide"],
     off:() => state.layout === "shelf",
     why:"في شكل «المكتبة» جهة الكلام تتبع جهة العطر" },
+  { ids:["votes"], soft:true,
+    off:() => !(state.community > 0),
+    why:"يظهر جنب تقييم المجتمع، وهو يجي من الكتالوج مع العطر" },
   { ids:["dayNum"], soft:true,
     off:() => !state.dayOn,
     why:"شغّل «أظهر اليوم» أول" },
@@ -3792,7 +3813,7 @@ const OFF_RULES = [
 const BASIC_IDS = new Set([
   "storeSearch","scene","layout","panelMode","photoIn","heroMode",
   "brand","pname","feeling","note",
-  "longevity","sillage","score",
+  "longevity","sillage","votes","score",
   "heroX","heroLift","heroScale",
   "feelSize","feelColor","feelBox","feelFace",
   "noteSize","noteColor","noteBox","noteFace",
@@ -3899,7 +3920,7 @@ function snapshot(){
     brand:state.brand, pname:state.pname, perfumer:state.perfumer,
     family:state.family, year:state.year,
     nTop:state.nTop, nHeart:state.nHeart, nBase:state.nBase,
-    longevity:state.longevity, sillage:state.sillage, community:state.community,
+    longevity:state.longevity, sillage:state.sillage, community:state.community, votes:state.votes,
     mGender:state.mGender, mSeason:state.mSeason, mTime:state.mTime,
     score:+scoreOf().toFixed(2),
     feeling:state.feeling, note:state.note, scoreLabel:state.scoreLabel,
@@ -4091,6 +4112,7 @@ function wire(){
     .forEach(k => bind(k, k));
   bindSelect("snapOn", "snapOn", v => v === "1");
   bind("dayNum", "dayNum", v => Math.max(0, parseInt(v, 10) || 0));
+  bind("votes", "votes", v => Math.max(0, parseInt(v, 10) || 0));
   bindSelect("layout", "layout", v => { setTimeout(syncLayoutUI, 0); return v; });
   bindSelect("panelMode", "panelMode");
   bindSelect("cardSide", "cardSide");
