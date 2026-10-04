@@ -136,6 +136,28 @@ for (const id of ['photoIn','heroMode','layout','scene','note','feeling','blockX
 ok('الخيارات الأساسية كلها ظاهرة في «الأساسيات»',
    Object.values(seen).every(Boolean), JSON.stringify(seen));
 
+/* ١١ — قائمة «التصميم» وحدة: ستة دواليب مرسومة ثم غرفه، والاختيار منها يبدّل الخلفية */
+const design = await page.$$eval('#scene option', os => os.map(o => o.value));
+ok('ستة تصاميم مرسومة وغرفه بعدها في نفس القائمة',
+   design.slice(0, 6).every(v => /^s0[1-6]$/.test(v)) && design.length > 6 && design.slice(6).every(v => /^my/.test(v)),
+   design.length + ' خيار: ' + design.slice(0, 7).join(' ') + ' …');
+await page.selectOption('#scene', 'my1');
+await waitStable(page);
+await snap(page, 'room');
+const roomOn = await page.$eval('#bgRoom', e => e.textContent);
+ok('اختيار غرفة من القائمة يخلّيها الخلفية',
+   /المستعملة الحين/.test(roomOn) && (await page.$eval('#shelfBlur', e => e.disabled)) === true, roomOn.slice(0, 40));
+await page.selectOption('#scene', 's03');
+await waitForCabinet(page);
+await waitStable(page);
+await snap(page, 'drawn');
+const roomOff = await page.$eval('#bgRoom', e => e.textContent);
+const swapped = await diff(page, 'room', 'drawn', 0, 540);
+ok('الرجوع لدولاب مرسوم يشيل الغرفة',
+   !/المستعملة الحين/.test(roomOff) && (await page.$eval('#shelfBlur', e => e.disabled)) === false
+   && (await page.$eval('#scene', e => e.value)) === 's03' && swapped > 20000,
+   swapped + ' بكسل تغيّرت');
+
 ok('ما فيه أخطاء جافاسكربت', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await shot(page, 'test/last-frame.png');
