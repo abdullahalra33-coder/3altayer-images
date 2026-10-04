@@ -534,7 +534,7 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
             🏛 ورّني العطر داخل المكتبة
           </button>
           <div class="field">
-            <label for="scene">التصميم <span class="mini">(١٦ جاهز)</span></label>
+            <label for="scene">التصميم <span class="mini">(٦ مرسومة + غرفك)</span></label>
             <select id="scene"></select>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
               <button class="icon-btn" type="button" id="scenePrev">◀ السابق</button>
@@ -546,7 +546,8 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
               <span class="slider-val" id="shelfBlurVal">٢</span>
               <input type="range" id="shelfBlur" min="0" max="16" step="1" value="2">
             </div>
-            <p class="hint">اختيار تصميم يعبّي كل المؤشرات — بعدها عدّل عليه زي ما تبي.
+            <p class="hint">القائمة فيها ستة دواليب مرسومة، وتحتها غرفك المصوّرة — من «مكتبة عطرية»
+              ترفع غرف جديدة وتطلع هنا. اختيار تصميم يعبّي كل المؤشرات — بعدها عدّل عليه زي ما تبي.
               وغبش صفر يخلّي عطور الخلفية واضحة تماماً.</p>
           </div>
           <p class="hint" id="inRoomHint">القارورة تنقص من خلفيتها البيضاء وتوقف داخل مكتبة عطور.
@@ -2884,12 +2885,51 @@ function selectRoom(id){
   if (!r){ bgImg = null; renderRooms(); scheduleRender(); return; }
   pullFraming(); syncControls();
   const im = new Image();
-  im.onload = () => { bgImg = im; renderRooms(); scheduleRender(); };
-  im.onerror = () => { bgImg = null; renderRooms(); scheduleRender(); };
+  // مؤشرات الدولاب المرسوم تنطفئ لمّا تصير الغرفة هي الخلفية — وهذا يُعرف بعد
+  // تحميل الصورة لا عند اختيارها، فلازم نعيد الفحص هنا لا في onChange وحده
+  im.onload = () => { bgImg = im; renderRooms(); refreshEnabled(); scheduleRender(); };
+  im.onerror = () => { bgImg = null; renderRooms(); refreshEnabled(); scheduleRender(); };
   im.src = r.url;
 }
 
+// قائمة «التصميم» الموحّدة: الدواليب المرسومة ثم غرفه. القيمة المختارة هي
+// الغرفة إن كان فيه غرفة، وإلا التصميم المرسوم — الاثنان ما يجتمعان في الصورة.
+let sceneListKey = "";
+function designList(){ return SCENES.map(x => x.id).concat(rooms.map(r => r.id)); }
+function fillSceneSelect(){
+  const sel = $("#scene"); if (!sel) return;
+  const key = designList().join("|") + "#" + rooms.map(r => r.name).join("|");
+  if (key !== sceneListKey){
+    sceneListKey = key;
+    sel.textContent = "";
+    const g1 = document.createElement("optgroup"); g1.label = "دولاب مرسوم";
+    SCENES.forEach(sc => {
+      const o = document.createElement("option"); o.value = sc.id; o.textContent = sc.name; g1.appendChild(o);
+    });
+    sel.appendChild(g1);
+    if (rooms.length){
+      const g2 = document.createElement("optgroup"); g2.label = "غرفك المصوّرة";
+      rooms.forEach((r, i) => {
+        const o = document.createElement("option"); o.value = r.id;
+        o.textContent = toAr(SCENES.length + i + 1) + " · " + (r.name || ("غرفة " + toAr(i + 1)));
+        g2.appendChild(o);
+      });
+      sel.appendChild(g2);
+    }
+  }
+  sel.value = roomId || state.scene || SCENES[0].id;
+}
+function pickDesign(id){
+  if (rooms.some(r => r.id === id)){
+    // غرفة من القائمة: نفس ما يسويه اختيار تصميم مرسوم — شكل «المكتبة» وبدون
+    // صورة اليوم — لكن الخلفية صورته لا دولاب مرسوم
+    photoImg = null; state.layout = "shelf";
+    selectRoom(id); syncControls(); onChange();
+  } else applyScene(id);
+}
+
 function renderRooms(){
+  fillSceneSelect();
   const host = $("#bgChips");
   if (host){
     host.textContent = "";
@@ -2910,7 +2950,7 @@ function renderRooms(){
     const r = rooms.find(x => x.id === roomId);
     line.textContent = r
       ? "المستعملة الحين: " + r.name + " — كل غرفة تحتفظ بقصّتها وضبابيتها لحالها."
-      : (rooms.length ? "اختر غرفة من فوق." : "بدون غرفة، الأداة تركّب لك مكتبة مرسومة — وهي رسم لا صورة.");
+      : (rooms.length ? "اختر غرفة من فوق أو من قائمة «التصميم»." : "بدون غرفة، الأداة تركّب لك مكتبة مرسومة — وهي رسم لا صورة.");
   }
 }
 
@@ -2963,12 +3003,19 @@ function deleteRoom(){
 // counter, spotlight, close) across five palettes and five distances. Picking one
 // writes its values into the sliders, so it is a starting point, not a template.
 const SCENE_KINDS = new Set(["shelves","wall","close","spot","vitrine","room","aisle","counter","pendants","window"]);
-const SCENES = [{"id":"s01","name":"١ · محل بمنظور · رملي · بعيد","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"room","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":159,"heroSide":"left","heroPose":"held","heroScale":1.05,"heroTilt":-4,"heroLift":150,"panelMode":"bars","topGap":300}},{"id":"s02","name":"٢ · محل بمنظور · ليلي · متوسط","a":{"layout":"shelf","shelfStyle":"night","shelfKind":"room","shelfRows":5,"shelfPer":6,"shelfBlur":0,"shelfSeed":174,"heroSide":"left","heroPose":"held","heroScale":1.05,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":300}},{"id":"s03","name":"٣ · ممر عطور · رمادي · بعيد","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"aisle","shelfRows":8,"shelfPer":8,"shelfBlur":2,"shelfSeed":190,"heroSide":"left","heroPose":"shelf","heroScale":1,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":180}},{"id":"s04","name":"٤ · من وراء الزجاج · رمادي · بعيد","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"window","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":166,"heroSide":"left","heroPose":"held","heroScale":1.15,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":300}},{"id":"s05","name":"٥ · فترينة · أسود وذهبي · بعيد","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"vitrine","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":40,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s06","name":"٦ · جدار عطور · أسود وذهبي · ضبابي","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":3,"shelfSeed":16,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s07","name":"٧ · رفوف · نيون أزرق · متوسط","a":{"layout":"shelf","shelfStyle":"neon","shelfKind":"shelves","shelfRows":6,"shelfPer":6,"shelfBlur":0,"shelfSeed":9,"heroSide":"left","heroPose":"held","heroScale":0.88,"heroTilt":6,"heroLift":60,"panelMode":"bars","topGap":50}},{"id":"s08","name":"٨ · لمبات معلّقة · زجاج ذهبي · متوسط","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"pendants","shelfRows":6,"shelfPer":6,"shelfBlur":0,"shelfSeed":151,"heroSide":"left","heroPose":"held","heroScale":1.15,"heroTilt":-4,"heroLift":150,"panelMode":"bars","topGap":300}},{"id":"s09","name":"٩ · طاولة عرض · زجاج ذهبي · متوسط","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"counter","shelfRows":6,"shelfPer":6,"shelfBlur":0,"shelfSeed":163,"heroSide":"left","heroPose":"held","heroScale":1.3,"heroTilt":0,"heroLift":160,"panelMode":"bars","topGap":180}},{"id":"s10","name":"١٠ · ضوء واحد · أسود وذهبي · مسلّط","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"spot","shelfRows":4,"shelfPer":5,"shelfBlur":2,"shelfSeed":32,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-11,"heroLift":180,"panelMode":"full","topGap":300}},{"id":"s11","name":"١١ · رفوف · نبيذي · قريب","a":{"layout":"shelf","shelfStyle":"wine","shelfKind":"shelves","shelfRows":3,"shelfPer":4,"shelfBlur":2,"shelfSeed":11,"heroSide":"left","heroPose":"held","heroScale":1,"heroTilt":9,"heroLift":90,"panelMode":"full","topGap":300}},{"id":"s12","name":"١٢ · رف قريب · أسود وذهبي · قريب جداً","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"close","shelfRows":3,"shelfPer":4,"shelfBlur":2,"shelfSeed":24,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-7,"heroLift":200,"panelMode":"off","topGap":50}},{"id":"s13","name":"١٣ · دواليب زجاج · خشب دافئ · بعيد جداً","a":{"layout":"shelf","shelfStyle":"wood","shelfKind":"vitrine","shelfRows":9,"shelfPer":12,"shelfBlur":1,"shelfSeed":301,"heroSide":"left","heroPose":"held","heroScale":0.72,"heroTilt":-5,"heroLift":90,"panelMode":"bars","topGap":300}},{"id":"s14","name":"١٤ · دواليب تحت اللمبات · زجاج ذهبي · بعيد جداً","a":{"layout":"shelf","shelfStyle":"glass","shelfKind":"pendants","shelfRows":9,"shelfPer":12,"shelfBlur":1,"shelfSeed":312,"heroSide":"left","heroPose":"held","heroScale":0.74,"heroTilt":5,"heroLift":80,"panelMode":"bars","topGap":300}},{"id":"s15","name":"١٥ · ممر طويل · أزرق ليلي · بعيد جداً","a":{"layout":"shelf","shelfStyle":"night","shelfKind":"aisle","shelfRows":9,"shelfPer":12,"shelfBlur":1,"shelfSeed":303,"heroSide":"left","heroPose":"held","heroScale":0.7,"heroTilt":4,"heroLift":60,"panelMode":"bars","topGap":300}},{"id":"s16","name":"١٦ · جدار دواليب · نحاسي · بعيد جداً","a":{"layout":"shelf","shelfStyle":"brass","shelfKind":"shelves","shelfRows":9,"shelfPer":12,"shelfBlur":0,"shelfSeed":304,"heroSide":"left","heroPose":"held","heroScale":0.72,"heroTilt":-6,"heroLift":80,"panelMode":"bars","topGap":300}}];
+const SCENES = [{"id":"s01","name":"١ · محل بمنظور · رملي · بعيد","a":{"layout":"shelf","shelfStyle":"sand","shelfKind":"room","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":159,"heroSide":"left","heroPose":"held","heroScale":1.05,"heroTilt":-4,"heroLift":150,"panelMode":"bars","topGap":300}},{"id":"s02","name":"٢ · محل بمنظور · ليلي · متوسط","a":{"layout":"shelf","shelfStyle":"night","shelfKind":"room","shelfRows":5,"shelfPer":6,"shelfBlur":0,"shelfSeed":174,"heroSide":"left","heroPose":"held","heroScale":1.05,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":300}},{"id":"s03","name":"٣ · ممر عطور · رمادي · بعيد","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"aisle","shelfRows":8,"shelfPer":8,"shelfBlur":2,"shelfSeed":190,"heroSide":"left","heroPose":"shelf","heroScale":1,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":180}},{"id":"s04","name":"٤ · من وراء الزجاج · رمادي · بعيد","a":{"layout":"shelf","shelfStyle":"stone","shelfKind":"window","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":166,"heroSide":"left","heroPose":"held","heroScale":1.15,"heroTilt":5,"heroLift":70,"panelMode":"full","topGap":300}},{"id":"s05","name":"٥ · فترينة · أسود وذهبي · بعيد","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"vitrine","shelfRows":7,"shelfPer":7,"shelfBlur":1,"shelfSeed":40,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}},{"id":"s06","name":"٦ · جدار عطور · أسود وذهبي · ضبابي","a":{"layout":"shelf","shelfStyle":"black","shelfKind":"wall","shelfRows":7,"shelfPer":8,"shelfBlur":3,"shelfSeed":16,"heroSide":"left","heroPose":"held","heroScale":1.18,"heroTilt":-4,"heroLift":150,"panelMode":"notes","topGap":180}}];
 
 function applyScene(id){
   const sc = SCENES.find(x => x.id === id);
   if (!sc) return;
+  // الغرفة والدولاب المرسوم صارا في قائمة وحدة، فاختيار دولاب معناه «بدون
+  // غرفة» — وإلا بقيت الغرفة تغطّي عليه وما تغيّر شي في الصورة
+  if (roomId) selectRoom("");
   Object.assign(state, sc.a);
+  // الغرفة توقف القارورة يمين (heroX ≈ ٨٠) والتصاميم المرسومة كلها معايرة
+  // والقارورة يسار عند ٢٣ بدون ما تكتبه — فلو جاء من غرفة بقيت القارورة فوق
+  // الكلام. نرجّعها للقيمة الافتراضية ما لم يحدّد التصميم غيرها.
+  if (sc.a.heroX === undefined) state.heroX = 23;
   state.scene = id;
   cabinetKey = "";
   // the previous cabinet stays on screen until the new one is ready — clearing
@@ -3774,7 +3821,7 @@ function updateSummaries(){
   if (ir){
     ir.textContent = photoImg
       ? "صورة اليوم شايلة مكان العطر — اضغط الزر أو «شيل صورة اليوم» وترجع القارورة."
-      : (bgImg ? "غرفتك المحفوظة هي الخلفية. شيلها من «مكتبة عطرية» لو تبي مكتبة العطور بدالها."
+      : (bgImg ? "غرفتك هي الخلفية. اختر دولاباً مرسوماً من قائمة «التصميم» لو تبيه بدالها."
                : "القارورة تنقص من خلفيتها البيضاء وتوقف داخل مكتبة عطور. ما تحتاج ترفع شي.");
   }
   const pn = $("#photoNote");
@@ -3825,7 +3872,7 @@ function syncControls(){
   const ls = $("#libShelf"); if (ls) ls.value = state.libShelf ? "1" : "0";
   const bf = $("#bgFlip"); if (bf) bf.value = state.bgFlip ? "1" : "0";
   set("heroPose", state.heroPose);
-  set("scene", state.scene);
+  fillSceneSelect();
   renderLibChips();
   const d = $("#dayOn"); if (d) d.value = state.dayOn ? "1" : "0";
   buildCriteria(); updateScore(); updateRangeLabels();
@@ -4188,7 +4235,12 @@ function restore(){
   }
   // the shortlist dropped the pattern backdrops and renumbered the rest, so a
   // scene saved by an older build may no longer exist — fall back to the first
-  if (!SCENES.some(x => x.id === state.scene)) state.scene = SCENES[0].id;
+  if (!SCENES.some(x => x.id === state.scene)){
+    // لو كان على s13 مثلاً، الاسم وحده ما يكفي: تبقى الصورة على تسعة رفوف
+    // والقائمة تقول «١» — فنكتب إعدادات الأول كلها. الغرفة، إن كانت مختارة،
+    // تُسترجع بعدها وتكتب أماكن قارورتها فوق هذا.
+    Object.assign(state, SCENES[0].a); state.scene = SCENES[0].id;
+  }
   if (!SCENE_KINDS.has(state.shelfKind)) state.shelfKind = "shelves";
   const savedBg = lsGet(LS_BG, null);
   const DEF_F = { bgBlur:8, bgDim:44, bgZoom:1, bgPanX:50, bgPanY:50, bgFlip:false };
@@ -4251,20 +4303,17 @@ function wire(){
   bindSelect("heroMode", "heroMode");
 
   const sceneSel = $("#scene");
-  SCENES.forEach(sc => {
-    const o = document.createElement("option");
-    o.value = sc.id; o.textContent = sc.name;
-    sceneSel.appendChild(o);
-  });
-  sceneSel.value = state.scene || SCENES[0].id;
-  sceneSel.addEventListener("change", () => applyScene(sceneSel.value));
+  fillSceneSelect();
+  sceneSel.addEventListener("change", () => pickDesign(sceneSel.value));
+  // السابق/التالي/عشوائي يمشون على القائمة كلها: المرسومة ثم غرفه
   const step = d => {
-    const i = SCENES.findIndex(x => x.id === state.scene);
-    applyScene(SCENES[(((i < 0 ? 0 : i) + d) % SCENES.length + SCENES.length) % SCENES.length].id);
+    const all = designList();
+    const i = all.indexOf(roomId || state.scene);
+    pickDesign(all[(((i < 0 ? 0 : i) + d) % all.length + all.length) % all.length]);
   };
   $("#scenePrev").addEventListener("click", () => step(-1));
   $("#sceneNext").addEventListener("click", () => step(1));
-  $("#sceneRand").addEventListener("click", () => applyScene(SCENES[Math.floor(Math.random() * SCENES.length)].id));
+  $("#sceneRand").addEventListener("click", () => { const all = designList(); pickDesign(all[Math.floor(Math.random() * all.length)]); });
 
   $("#brand").addEventListener("input", refreshDup);
   $("#pname").addEventListener("input", refreshDup);
