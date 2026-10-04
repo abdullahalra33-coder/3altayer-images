@@ -374,17 +374,6 @@ input[type="range"]::-moz-range-thumb{
 .dup[hidden]{ display:none; }
 .dup b{ font-weight:600; font-variant-numeric:tabular-nums; direction:ltr; }
 
-/* publishing queue */
-.plan-idx{
-  flex:none; width:24px; height:24px; border-radius:7px;
-  display:grid; place-items:center;
-  font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums;
-  background:var(--panel2); color:var(--ink3); border:1px solid var(--line);
-}
-.arch-row.is-next .plan-idx{
-  background:var(--amber); color:var(--amber-ink); border-color:var(--amber);
-}
-.arch-row.is-next{ border-color:var(--amber); }
 .opt-done{ color:var(--sage); font-size:11px; margin-inline-start:6px; }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 
@@ -1068,28 +1057,10 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
         </div>
       </details>
 
-      <!-- 6 · QUEUE -->
+      <!-- 6 · ARCHIVE -->
       <details class="card">
         <summary>
           <span class="step">٦</span>
-          خطة النشر
-          <span class="summary-note" id="planNote">القائمة فاضية</span>
-          <svg class="chev" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </summary>
-        <div class="card-body">
-          <p class="hint">رتّب عطور الأيام الجاية مرة وحدة. الأداة تختار من كتالوجك عطور ما قيّمتها، وتنوّع البراندات.</p>
-          <div class="stage-actions">
-            <button class="btn" type="button" id="planFill">＋ املأ ٧ أيام</button>
-            <button class="btn btn-ghost" type="button" id="planClear">فضّي القائمة</button>
-          </div>
-          <div class="arch-list" id="planList"></div>
-        </div>
-      </details>
-
-      <!-- 7 · ARCHIVE -->
-      <details class="card">
-        <summary>
-          <span class="step">٧</span>
           الأرشيف
           <span class="summary-note" id="archNote">٠ عطر</span>
           <svg class="chev" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1127,7 +1098,6 @@ const NOTE_RED = "#FF4D4D";   // the note, and only the note
 
 const LS_STATE = "3altayer.mood2.state.v1";
 const LS_ARCH  = "3altayer.mood2.archive.v1";
-const LS_PLAN  = "3altayer.mood2.plan.v1";
 const LS_BG    = "3altayer.mood2.rooms.v1";   // the room photos he gathers
 const LS_THEME = "3altayer.mood2.theme.v1";
 
@@ -1176,7 +1146,6 @@ let bgBlurred = null, bgBlurKey = "";
 let rooms = [];                      // [{id, name, url, f:{blur,dim,zoom,panX,panY,flip}}]
 let roomId = "";
 let archive  = [];
-let plan     = [];
 let showGuides = false;
 let mcpApi = null;
 let mcpState = "idle";   // idle | ok | off | err
@@ -3848,7 +3817,7 @@ function applyDensity(){
   });
   // containers without an input of their own never got un-marked, and his ten
   // room backgrounds live in one — they disappeared from the basic panel
-  ["bgChips","planList","archList"].forEach(id => {
+  ["bgChips","archList"].forEach(id => {
     let n = $("#" + id);
     while (n && n !== document.body){
       if (n.dataset && n.dataset.adv === "1") n.dataset.adv = "0";
@@ -3974,56 +3943,6 @@ function renderArchive(){
   });
   updateSummaries();
 }
-function pickForQueue(n){
-  const taken = new Set(archive.map(e => ratedKey(e.brand, e.pname)));
-  plan.forEach(x => taken.add(ratedKey(x.b, x.n)));
-  const byBrand = new Map();
-  PERFUMES.forEach(r => {
-    if (!r.t && !r.m && !r.z) return;                 // queue only usable entries
-    if (taken.has(ratedKey(r.b, r.n))) return;
-    if (!byBrand.has(r.b)) byBrand.set(r.b, []);
-    byBrand.get(r.b).push(r);
-  });
-  let brands = Array.from(byBrand.keys());
-  if (!brands.length) return [];
-  const out = []; let i = archive.length % brands.length, guard = 0;
-  while (out.length < n && brands.length && guard++ < 4000){
-    const b = brands[i % brands.length], bucket = byBrand.get(b);
-    if (bucket && bucket.length){ out.push(bucket.shift()); i++; }
-    else brands = brands.filter(x => x !== b);
-  }
-  return out;
-}
-function renderPlan(){
-  const host = $("#planList"); host.textContent = "";
-  if (!plan.length){
-    const p = document.createElement("p"); p.className = "empty";
-    p.textContent = "القائمة فاضية — اضغط «املأ ٧ أيام»"; host.appendChild(p);
-    $("#planNote").textContent = "القائمة فاضية"; return;
-  }
-  plan.forEach((it, i) => {
-    const row = document.createElement("div");
-    row.className = "arch-row" + (i === 0 ? " is-next" : "");
-    const idx = document.createElement("div"); idx.className = "plan-idx"; idx.textContent = toAr(i + 1);
-    const nm = document.createElement("div"); nm.className = "arch-name"; nm.textContent = it.n;
-    const sub = document.createElement("em"); sub.textContent = it.b; nm.appendChild(sub);
-    const use = document.createElement("button");
-    use.type = "button"; use.className = "icon-btn"; use.textContent = "جهّزه";
-    use.addEventListener("click", () => {
-      const full = PERFUMES.find(r => ratedKey(r.b, r.n) === ratedKey(it.b, it.n));
-      if (full) applyRecord(full);
-      else { state.brand = it.b; state.pname = it.n; syncControls(); refreshDup(); onChange(); }
-      window.scrollTo({ top:0, behavior:"smooth" });
-    });
-    const del = document.createElement("button");
-    del.type = "button"; del.className = "icon-btn danger"; del.textContent = "شِله";
-    del.setAttribute("aria-label", "شِل " + it.n);
-    del.addEventListener("click", () => { plan.splice(i, 1); lsSet(LS_PLAN, plan); renderPlan(); });
-    row.append(idx, nm, use, del); host.appendChild(row);
-  });
-  $("#planNote").textContent = toAr(plan.length) + " جاهزة · التالي: " + plan[0].n;
-}
-
 /* ---------- saving ---------- */
 async function offerFile(filename, data){
   let dl = null;
@@ -4152,7 +4071,8 @@ function restore(){
                ? savedBg.active : "");
   roomsReady = true;
   archive = lsGet(LS_ARCH, []) || [];
-  plan    = lsGet(LS_PLAN, []) || [];
+  // خطة النشر حُذفت؛ ما خزّنته نسخة قديمة ما له قارئ، فيُمسح
+  try{ localStorage.removeItem("3altayer.mood2.plan.v1"); }catch(_){}
   if (!saved || saved.dayNum === undefined) state.dayNum = archive.length + 1;
   applyTheme(lsGet(LS_THEME, "auto") || "auto");
 }
@@ -4351,27 +4271,15 @@ function wire(){
     $("#guideBtn").setAttribute("aria-pressed", String(showGuides));
     render(showGuides);
   });
-  $("#planFill").addEventListener("click", () => {
-    const picks = pickForQueue(7);
-    if (!picks.length){ toast("خلصت عطور الكتالوج غير المقيّمة", "err"); return; }
-    plan = plan.concat(picks); lsSet(LS_PLAN, plan); renderPlan();
-    toast("انضاف " + toAr(picks.length) + " عطر للقائمة");
-  });
-  $("#planClear").addEventListener("click", () => {
-    plan = []; lsSet(LS_PLAN, plan); renderPlan(); toast("فضّيت القائمة");
-  });
   $("#archSave").addEventListener("click", () => {
     if (!String(state.pname).trim()){ toast("اكتب اسم العطر أول", "err"); return; }
     archive.push(snapshot());
     const ok = lsSet(LS_ARCH, archive);
-    const k = ratedKey(state.brand, state.pname), before = plan.length;
-    plan = plan.filter(x => ratedKey(x.b, x.n) !== k);
-    if (plan.length !== before) lsSet(LS_PLAN, plan);
     state.dayNum = Math.max(1, (parseInt(state.dayNum, 10) || 0) + 1);
     const dn = $("#dayNum"); if (dn) dn.value = state.dayNum;
-    renderArchive(); renderPlan(); refreshDup(); persist();
+    renderArchive(); refreshDup(); persist();
     if (!ok) toast("الذاكرة ممتلئة — صدّر نسخة واحذف قديم", "err");
-    else toast("انحفظ ✓ — بكرة اليوم " + toAr(state.dayNum) + (plan.length ? " · " + plan[0].n : ""));
+    else toast("انحفظ ✓ — بكرة اليوم " + toAr(state.dayNum));
   });
   $("#archExport").addEventListener("click", exportArchive);
   $("#archImport").addEventListener("change", e => {
@@ -4390,7 +4298,6 @@ function wire(){
   buildFeelIdeas();
   syncControls();
   renderArchive();
-  renderPlan();
   refreshDup();
   updateSummaries();
   applyDensity();

@@ -171,6 +171,16 @@ ok('مؤشر التقييم الواحد يغيّر الرقم على الصور
    leftovers.length === 0 && scoreTxt === '6.40' && scoreMoved > 500,
    scoreTxt + ' · ' + scoreMoved + ' بكسل · بقايا: ' + (leftovers.join(',') || 'لا'));
 
+/* ١٣ — خطة النشر محذوفة، والحفظ في الأرشيف ما زال يشتغل بدونها */
+const planLeft = await page.evaluate(() => ['planList','planFill','planClear','planNote'].filter(id => document.getElementById(id)));
+const archBefore = await page.$eval('#archNote', e => e.textContent);
+await page.click('#archSave');
+await page.waitForTimeout(400);
+const archAfter = await page.$eval('#archNote', e => e.textContent);
+ok('خطة النشر راحت والحفظ في الأرشيف شغّال',
+   planLeft.length === 0 && archBefore !== archAfter,
+   archBefore + ' ← ' + archAfter + ' · بقايا: ' + (planLeft.join(',') || 'لا'));
+
 ok('ما فيه أخطاء جافاسكربت', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await shot(page, 'test/last-frame.png');
