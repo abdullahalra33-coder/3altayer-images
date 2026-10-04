@@ -846,7 +846,7 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
                 <input type="range" id="community" min="0" max="5" step="0.01" value="0">
               </div>
               <div class="field">
-                <label for="votes">عدد المقيّمين <span class="mini">(يطلع بين قوسين جنبه)</span></label>
+                <label for="votes">عدد المقيّمين <span class="mini">(يطلع بين قوسين بعد عنوان المصدر)</span></label>
                 <input type="number" id="votes" min="0" step="1" inputmode="numeric" dir="ltr" placeholder="162">
               </div>
             </div>
@@ -1547,8 +1547,8 @@ function layoutPanel(){
   if (wantBars && (state.community > 0 || state.longevity > 0 || state.sillage > 0)){
     if (ops.length){ h += 10; ops.push({ k:"rule", y:h }); h += 26; }
     const src = String(state.srcLabel).trim();
-    if (src){ ops.push({ k:"srcLabel", y:h, text:src }); h += 34; }
-    if (state.community > 0){ ops.push({ k:"headline", y:h, v:state.community, n:state.votes }); h += 50; }
+    if (src){ ops.push({ k:"srcLabel", y:h, text:src + votesSuffix() }); h += 34; }
+    if (state.community > 0){ ops.push({ k:"headline", y:h, v:state.community }); h += 50; }
     if (state.longevity > 0){ ops.push({ k:"bar", y:h, label:"الثبات",  v:state.longevity, w:innerW }); h += 58; }
     if (state.sillage   > 0){ ops.push({ k:"bar", y:h, label:"الفوحان", v:state.sillage,   w:innerW }); h += 58; }
     h -= 8;
@@ -1616,7 +1616,6 @@ function drawPanel(top, layout){
       ctx.font = '500 44px Tajawal, sans-serif';
       ctx.fillStyle = rgbStr(hue);
       ctx.fillText(op.v.toFixed(1), right - sw, y + 34);
-      drawVotes(op.n, right - sw - ctx.measureText(op.v.toFixed(1)).width - 14, y + 34, 24);
     } else if (op.k === "bar"){
       ctx.font = '400 30px Tajawal, sans-serif';
       ctx.direction = "rtl"; ctx.textAlign = "right";
@@ -1916,14 +1915,11 @@ function drawHead(right, y, opts){
   return y;
 }
 
-// عدد المقيّمين بين قوسين على يسار رقم المجتمع — صغير وباهت، معلومة لا عنوان.
-// يُرسم من اليمين عند x (الذي ينتهي عنده الرقم) حتى لا يلمسه مهما طال العدد.
-function drawVotes(n, x, y, size){
-  n = Math.round(Number(n) || 0); if (!(n > 0)) return;
-  ctx.font = '400 ' + size + 'px Tajawal, sans-serif';
-  ctx.direction = "ltr"; ctx.textAlign = "right";
-  ctx.fillStyle = "rgba(255,255,255,.5)";
-  ctx.fillText("(" + n.toLocaleString("en-US") + ")", x, y);
+// عدد المقيّمين بين قوسين بعد عبارة المصدر: «تقييم مجتمع فراغرانتيكا (162)».
+// كان جنب الرقم أولاً، فطلبه بعد العبارة — السطر يُرسم rtl فالقوسان يلحقانها.
+function votesSuffix(){
+  const n = Math.round(Number(state.votes) || 0);
+  return n > 0 ? " (" + n.toLocaleString("en-US") + ")" : "";
 }
 
 // The community block: source line, headline score, then the two bars.
@@ -1935,7 +1931,7 @@ function drawCommunity(x, right, y, w){
     ctx.font = '400 27px Tajawal, sans-serif';
     ctx.direction = "rtl"; ctx.textAlign = "right";
     shadowOn(12, 0.7, 2); ctx.fillStyle = "rgba(255,255,255,.58)";
-    ctx.fillText(src, right, y); shadowOff();
+    ctx.fillText(src + votesSuffix(), right, y); shadowOff();
     y += 46;
   }
   if (state.community > 0){
@@ -1947,7 +1943,6 @@ function drawCommunity(x, right, y, w){
     const sw = ctx.measureText("/ 5").width + 10;
     ctx.font = '500 52px Tajawal, sans-serif';
     ctx.fillStyle = rgbStr(hue); ctx.fillText(state.community.toFixed(1), right - sw, y);
-    drawVotes(state.votes, right - sw - ctx.measureText(state.community.toFixed(1)).width - 16, y, 27);
     shadowOff();
     y += 54;
   }
@@ -3787,8 +3782,8 @@ const OFF_RULES = [
     off:() => state.layout === "shelf",
     why:"في شكل «المكتبة» جهة الكلام تتبع جهة العطر" },
   { ids:["votes"], soft:true,
-    off:() => !(state.community > 0),
-    why:"حرّك «تقييم المجتمع» أول — العدد يظهر جنبه" },
+    off:() => !(state.community > 0) || !String(state.srcLabel).trim(),
+    why:() => !(state.community > 0) ? "حرّك «تقييم المجتمع» أول" : "يلحق «عنوان مصدر الأرقام» — اكتبه أول" },
   { ids:["dayNum"], soft:true,
     off:() => !state.dayOn,
     why:"شغّل «أظهر اليوم» أول" },
