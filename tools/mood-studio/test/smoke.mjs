@@ -170,7 +170,7 @@ await page.fill('#votes', '');
 await waitStable(page);
 await snap(page, 'votes-cleared');
 const votesGone = await diff(page, 'votes-off', 'votes-cleared', 0, 1080);
-ok('عدد المقيّمين يُرسم جنب تقييم المجتمع ويختفي لمّا يُمسح',
+ok('عدد المقيّمين يلحق عبارة المصدر ويختفي لمّا يُمسح',
    votesInk > 300 && votesGone === 0, votesInk + ' بكسل ظهرت، ' + votesGone + ' بقيت بعد المسح');
 
 /* ١٢ — التقييم مؤشر واحد: يحرّك الرقم المرسوم، وما بقي من المعايير شي */
