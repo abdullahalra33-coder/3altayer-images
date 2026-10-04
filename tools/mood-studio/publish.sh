@@ -22,6 +22,12 @@ tools=$(printf '040000 tree %s\tmood-studio\n' "$studio" | git mktree)
 root=$(printf '100644 blob %s\t.nojekyll\n100644 blob %s\tindex.html\n040000 tree %s\tstore_orig\n040000 tree %s\ttools\n' \
         "$nojekyll" "$index" "$photos" "$tools" | git mktree)
 
+# بعد استنساخ جديد ما فيه فرع gh-pages محلي أصلاً، وبعد إعادة تشغيل الحاوية قد
+# يكون المحلي متأخراً عن البعيد — وفي الحالتين يُرفض الدفع. اسحب البعيد أولاً.
+if git fetch -q origin gh-pages 2>/dev/null; then
+  git update-ref refs/heads/gh-pages FETCH_HEAD
+fi
+
 parent=$(git rev-parse --verify -q refs/heads/gh-pages || true)
 if [ -n "$parent" ] && [ "$(git rev-parse "$parent^{tree}")" = "$root" ]; then
   echo "لا يوجد جديد — الموقع محدّث أصلاً."
