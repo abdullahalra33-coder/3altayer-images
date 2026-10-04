@@ -160,6 +160,8 @@ ok('الرجوع لدولاب مرسوم يشيل الغرفة',
 
 /* ١٢ب — عدد المقيّمين يطلع بين قوسين جنب تقييم المجتمع، ويختفي لمّا يُمسح */
 await page.selectOption('#layout', 'classic');
+// الكتالوج يعبّي العدد تلقائياً، فخط الأساس هو الحقل ممسوحاً لا كما جاء
+await page.fill('#votes', '');
 await waitStable(page);
 await snap(page, 'votes-off');
 await page.fill('#votes', '1234');
