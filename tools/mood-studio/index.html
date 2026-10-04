@@ -839,11 +839,17 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
               <span class="slider-val" id="silVal">0.0</span>
               <input type="range" id="sillage" min="0" max="5" step="0.1" value="0">
             </div>
-          </div>
-          <div class="field">
-            <label for="votes">عدد المقيّمين على فراغرانتيكا</label>
-            <input type="number" id="votes" min="0" step="1" inputmode="numeric" dir="ltr" placeholder="162">
-            <p class="hint">يطلع بين قوسين جنب تقييم المجتمع. يتعبّى من الكتالوج لو كان فيه، وإلا انسخه من صفحة المنتج.</p>
+            <div class="row">
+              <div class="slider-row">
+                <span class="lbl">تقييم المجتمع <span class="mini">من ٥</span></span>
+                <span class="slider-val" id="commVal">0.0</span>
+                <input type="range" id="community" min="0" max="5" step="0.01" value="0">
+              </div>
+              <div class="field">
+                <label for="votes">عدد المقيّمين <span class="mini">(يطلع بين قوسين جنبه)</span></label>
+                <input type="number" id="votes" min="0" step="1" inputmode="numeric" dir="ltr" placeholder="162">
+              </div>
+            </div>
           </div>
           <div class="field">
             <label for="srcLabel">عنوان مصدر الأرقام</label>
@@ -3729,7 +3735,7 @@ function syncControls(){
   set("mGender", state.mGender); set("mSeason", state.mSeason); set("mTime", state.mTime);
   set("snap", state.snap); set("srcLabel", state.srcLabel);
   const so = $("#snapOn"); if (so) so.value = state.snapOn ? "1" : "0";
-  set("longevity", state.longevity); set("sillage", state.sillage);
+  set("longevity", state.longevity); set("sillage", state.sillage); set("community", state.community);
   set("votes", state.votes > 0 ? state.votes : "");
   set("panelMode", state.panelMode); set("cardSide", state.cardSide);
   set("layout", state.layout);
@@ -3782,7 +3788,7 @@ const OFF_RULES = [
     why:"في شكل «المكتبة» جهة الكلام تتبع جهة العطر" },
   { ids:["votes"], soft:true,
     off:() => !(state.community > 0),
-    why:"يظهر جنب تقييم المجتمع، وهو يجي من الكتالوج مع العطر" },
+    why:"حرّك «تقييم المجتمع» أول — العدد يظهر جنبه" },
   { ids:["dayNum"], soft:true,
     off:() => !state.dayOn,
     why:"شغّل «أظهر اليوم» أول" },
@@ -3813,7 +3819,7 @@ const OFF_RULES = [
 const BASIC_IDS = new Set([
   "storeSearch","scene","layout","panelMode","photoIn","heroMode",
   "brand","pname","feeling","note",
-  "longevity","sillage","votes","score",
+  "longevity","sillage","community","votes","score",
   "heroX","heroLift","heroScale",
   "feelSize","feelColor","feelBox","feelFace",
   "noteSize","noteColor","noteBox","noteFace",
@@ -3905,11 +3911,13 @@ function updateRangeLabels(){
   const t = Math.round(state.heroTilt);
   $("#heroTiltVal").textContent = (t < 0 ? "−" : t > 0 ? "+" : "") + toAr(Math.abs(t));
   $("#heroLiftVal").textContent = toAr(Math.round(state.heroLift));
-  const lv = $("#longVal"), sv = $("#silVal");
+  const lv = $("#longVal"), sv = $("#silVal"), cv = $("#commVal");
   lv.textContent = Number(state.longevity).toFixed(1);
   sv.textContent = Number(state.sillage).toFixed(1);
+  cv.textContent = Number(state.community).toFixed(2);
   lv.style.color = state.longevity > 0 ? rgbStr(rampRGB(state.longevity / 5)) : "";
   sv.style.color = state.sillage   > 0 ? rgbStr(rampRGB(state.sillage / 5))   : "";
+  cv.style.color = state.community > 0 ? rgbStr(rampRGB(state.community / 5)) : "";
 }
 
 /* ---------- archive & queue ---------- */
@@ -4155,7 +4163,7 @@ function wire(){
    ["bgBlur","bgBlur"],["bgDim","bgDim"],["heroW","heroW"],
    ["bgZoom","bgZoom"],["bgPanX","bgPanX"],["bgPanY","bgPanY"],
    ["heroTilt","heroTilt"],["heroLift","heroLift"],["shelfBlur","shelfBlur"],["heroX","heroX"],["heroScale","heroScale"],
-   ["longevity","longevity"],["sillage","sillage"],["score","score"]].forEach(([id, key]) => {
+   ["longevity","longevity"],["sillage","sillage"],["community","community"],["score","score"]].forEach(([id, key]) => {
     const el = $("#" + id);
     el.addEventListener("input", () => {
       state[key] = parseFloat(el.value); updateRangeLabels();
