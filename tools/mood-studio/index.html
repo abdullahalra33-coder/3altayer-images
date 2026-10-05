@@ -653,12 +653,12 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
             <label for="heroMode">شكل العطر في التصميم</label>
             <select id="heroMode">
               <option value="auto">تلقائي — يقصّها، وإذا ما قدر يحطها على كرت</option>
-              <option value="cut">مقصوصة دائماً</option>
               <option value="card">على كرت دائماً</option>
               <option value="none">بدون صورة العطر — تفاصيل فقط</option>
             </select>
             <p class="hint">بعض صور المنتجات ما تنقص أبداً — قارورة بيضا على خلفية بيضا ما لها
-              حافة يعرفها الكود. إذا طلعت القارورة ناقصة أو مشقّقة، حوّلها «على كرت» وتطلع كاملة.<br>
+              حافة يعرفها الكود. القص يفحص نفسه، وعند أي شك يحط الصورة كاملة على كرت بدل قارورة
+              مشقّقة؛ ولو طلعت لك قصّة ناقصة رغم ذلك، حوّلها «على كرت».<br>
               «بدون صورة العطر» يشيل القارورة نهائياً ويخلّي الخلفية والكلام فقط. عشان يطلع فيه
               كلام يستاهل، خلّ «محتوى البطاقة» على «الكل»، و«تحريك التصميم» يمين/يسار يوسّط
               الكلام في الإطار — الاتجاه حسب الجهة اللي واقف فيها العمود.<br>
@@ -2523,7 +2523,7 @@ function cutOut(img){
   // floating in a hole. There is no threshold that separates 255 from 255, so
   // instead the cut grades itself on two counts, both calibrated against five
   // photos known to come out shredded and ten known to come out clean.
-  let rough = false;
+  let rough = false, stats = null;
   {
     let inside = 0, kept = 0;
     const opq = q => d[q * 4 + 3] > 128;
@@ -2549,7 +2549,9 @@ function cutOut(img){
     for (let q = 0; q < w * h; q++) if (opq(q)) kept++;
     // (1) knocked-out pixels walled in by bottle on both axes. Clean cuts run
     // 0-2.7%; the shredded ones 3.2-32.9%.
-    if (inside > kept * 0.030) rough = true;
+    // كانت ٣٪؛ Beach Hut وقف عند ٢٫٧٪ ومرّ على جوّاله (فكّ JPEG يختلف بين
+    // المتصفحات بدرجات تكفي لقلب الحكم على الهامش). السليمة في عيّنة ٤٨ ≤ ٠٫١٪.
+    if (inside > kept * 0.020) rough = true;
 
     // Enclosed holes only catch damage the bottle closes around. Beach Hut's
     // white cap is eaten from the top down, so the bite is open to the frame
@@ -2562,15 +2564,50 @@ function cutOut(img){
     openMask(obj, w, h, 18, false);
     let thick = 0;
     for (let q = 0; q < w * h; q++) thick += obj[q];
-    if (kept - thick > kept * 0.040) rough = true;
+    // كانت ٤٪ وBeach Hut عند ٥٫٢٪ — هامش ضيّق لنفس السبب. السليمة ≤ ١٫٦٪،
+    // وأرجل Gaultier (٣٫٤٪) تروح للكرت وهذا مقبول: الكرت ما يكذب أبداً.
+    if (kept - thick > kept * 0.030) rough = true;
+
+    // (3) الفجوة إلى الغلاف المحدّب. القارورة شكل شبه محدّب: الغطاء أضيق من
+    // الجسم فتبقى فجوة صغيرة. أما الزجاج الشفاف المأكول من جهة مفتوحة على
+    // الإطار — جسم Vogue الذي بقي منه خطّان، وغطاء Beach Hut المحفور من فوق —
+    // فلا يغلق ثقباً ولا يترك أجزاءً رفيعة، لكن غلافه المحدّب أكبر بكثير مما
+    // بقي. المقياسان الأولان فوّتا عشر قصّات من ٤٨ بهذا الشكل.
+    const hullGap = convexGap(d, w, h, x0, y0, x1, y1, kept);
+    stats = { inside: inside / kept, thin: (kept - thick) / kept, hull: hullGap };
+    if (hullGap > HULL_MAX) rough = true;
   }
 
   wg.putImageData(box, 0, 0);
   const out = document.createElement("canvas");
   out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
   out.getContext("2d").drawImage(work, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
-  out.rough = rough;
+  out.rough = rough; out.stats = stats;
   return out;
+}
+
+// معايَر على ٤٨ قصّة موسومة بالعين (انظر README «القص يقيّم نفسه»).
+const HULL_MAX = 0.30;
+// نسبة ما ينقص عن الغلاف المحدّب للصورة الظلّية: (مساحة الغلاف − المحفوظ) / الغلاف.
+// نقاط الغلاف هي أقصى يسار ويمين كل صف، فالحساب لا يلمس المليون بكسل مرتين.
+function convexGap(d, w, h, x0, y0, x1, y1, kept){
+  const pts = [];
+  for (let y = y0; y <= y1; y++){
+    let l = -1, r = -1;
+    for (let x = x0; x <= x1; x++) if (d[(y*w + x)*4 + 3] > 128){ if (l < 0) l = x; r = x; }
+    if (l >= 0){ pts.push([l, y]); if (r !== l) pts.push([r, y]); }
+  }
+  if (pts.length < 3) return 0;
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+  const lo = [], up = [];
+  for (const p of pts){ while (lo.length > 1 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while (up.length > 1 && cross(up[up.length-2], up[up.length-1], p) <= 0) up.pop(); up.push(p); }
+  const hull = lo.slice(0, -1).concat(up.slice(0, -1));
+  let area = 0;
+  for (let i = 0; i < hull.length; i++){ const a = hull[i], b = hull[(i+1) % hull.length]; area += a[0]*b[1] - b[0]*a[1]; }
+  area = Math.abs(area) / 2;
+  return area > 0 ? Math.max(0, (area - kept) / area) : 0;
 }
 
 function loadStorePhoto(id){
@@ -2606,6 +2643,8 @@ async function cutFor(id, maxSide){
   if (!isExportable(img)) throw new Error("tainted");
   const c = cutOut(maxSide ? shrink(img, maxSide) : img);
   cutCache.set(key, c);
+  // للفحص فقط: مقاييس كل قصّة حتى تُعايَر العتبات على عيّنة لا على الحدس
+  try{ (window.__cutStats = window.__cutStats || {})[key] = c && c.stats; (window.__cuts = window.__cuts || {})[key] = c; }catch(_){}
   return c;
 }
 
@@ -3376,11 +3415,11 @@ function drawShelfHero(){
     return;
   }
   const mode = state.heroMode || "auto";
-  const cut = mode === "card" ? null
-            : mode === "cut"  ? heroCut
-            : (heroCut && !heroCut.rough) ? heroCut : null;
+  // «مقصوصة دائماً» حُذف: كان المسار الوحيد الذي يعرض قصّة رفضتها البوّابة،
+  // وجاءت منه صورة Beach Hut بغطاء مأكول. القصّ المرفوض يروح للكرت بلا استثناء.
+  const cut = mode === "card" ? null : (heroCut && !heroCut.rough) ? heroCut : null;
   if (!cut){
-    if (heroFlat && mode !== "cut") drawHeroCard(heroFlat);
+    if (heroFlat) drawHeroCard(heroFlat);
     return;
   }
   // A photo the catalogue flagged as a crop has no bottom to stand on, so let
@@ -4073,6 +4112,7 @@ function restore(){
     Object.assign(state, SCENES[0].a); state.scene = SCENES[0].id;
   }
   if (!SCENE_KINDS.has(state.shelfKind)) state.shelfKind = "shelves";
+  if (state.heroMode === "cut") state.heroMode = "auto";   // الخيار حُذف
   const savedBg = lsGet(LS_BG, null);
   const DEF_F = { bgBlur:8, bgDim:44, bgZoom:1, bgPanX:50, bgPanY:50, bgFlip:false };
   let uploaded = [];

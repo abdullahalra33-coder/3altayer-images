@@ -40,14 +40,14 @@ ok('الدولاب انرسم مو شاشة سودا', levels > 60, levels + ' �
 
 /* ٤ — الخيارات الأربعة لشكل العطر */
 const modes = {};
-for (const m of ['auto','cut','card','none']){
+for (const m of ['auto','card','none']){
   await page.selectOption('#heroMode', m);
   await waitStable(page);
   modes[m] = await sig(page);
 }
 ok('«على كرت» و«بدون صورة» كل واحد يعطي إطاراً مختلفاً',
    modes.card !== modes.auto && modes.none !== modes.auto && modes.card !== modes.none);
-// auto و cut يتطابقان لمّا يكون القص نظيفاً — هذا صح لا خطأ
+// «مقصوصة دائماً» حُذف: القصّ المرفوض يروح للكرت دائماً
 
 /* ٥ — «بدون صورة العطر» يشيل القارورة ويترك الكلام */
 await page.selectOption('#heroMode', 'none');
@@ -197,6 +197,17 @@ const archAfter = await page.$eval('#archNote', e => e.textContent);
 ok('خطة النشر راحت والحفظ في الأرشيف شغّال',
    planLeft.length === 0 && archBefore !== archAfter,
    archBefore + ' ← ' + archAfter + ' · بقايا: ' + (planLeft.join(',') || 'لا'));
+
+/* ١٤ — قصّة ممزّقة ما تطلع أبداً: Beach Hut غطاؤه يُؤكل، فيروح للكرت في «تلقائي» */
+await pickPerfume(page, 'beach hut man', /man/i);
+await page.selectOption('#layout', 'shelf');
+await page.selectOption('#heroMode', 'auto');
+await page.waitForFunction(() => (window.__cuts || {})['698331760@0'] !== undefined, null, { timeout: 60000 });
+const bh = await page.evaluate(() => { const c = window.__cuts['698331760@0']; return { rough: c.rough, stats: c.stats }; });
+const cutOpt = await page.$$eval('#heroMode option', os => os.map(o => o.value));
+ok('القصّة المأكولة تُرفض وتروح للكرت، وخيار «مقصوصة دائماً» ما عاد موجوداً',
+   bh.rough === true && !cutOpt.includes('cut'),
+   JSON.stringify(bh.stats) + ' · ' + cutOpt.join(','));
 
 ok('ما فيه أخطاء جافاسكربت', errors.length === 0, errors.slice(0, 3).join(' | '));
 
