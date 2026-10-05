@@ -652,13 +652,14 @@ body[data-dense="basic"] [data-adv="1"]{ display:none !important; }
           <div class="field">
             <label for="heroMode">شكل العطر في التصميم</label>
             <select id="heroMode">
-              <option value="auto">تلقائي — يقصّها، وإذا ما قدر يحطها على كرت</option>
-              <option value="card">على كرت دائماً</option>
+              <option value="card">على كرت — صورة المنتج كاملة كما هي (مضمونة)</option>
+              <option value="auto">مقصوصة إن قدر — وإذا ما قدر يحطها على كرت</option>
               <option value="none">بدون صورة العطر — تفاصيل فقط</option>
             </select>
-            <p class="hint">بعض صور المنتجات ما تنقص أبداً — قارورة بيضا على خلفية بيضا ما لها
-              حافة يعرفها الكود. القص يفحص نفسه، وعند أي شك يحط الصورة كاملة على كرت بدل قارورة
-              مشقّقة؛ ولو طلعت لك قصّة ناقصة رغم ذلك، حوّلها «على كرت».<br>
+            <p class="hint">الكرت هو الافتراضي: صورة المنتج كما هي، بلا قصّ، فما تنشقّ ولا تنأكل.
+              «مقصوصة إن قدر» تنزع الخلفية البيضاء وتوقف القارورة في المشهد — تطلع حلوة على كثير
+              من القوارير، لكن الزجاج الشفاف والقوارير الفاتحة وانعكاسات الأرضية تطلع فيها عيوب،
+              فاختره للعطر الواحد لمّا تشوف قصّته نظيفة.<br>
               «بدون صورة العطر» يشيل القارورة نهائياً ويخلّي الخلفية والكلام فقط. عشان يطلع فيه
               كلام يستاهل، خلّ «محتوى البطاقة» على «الكل»، و«تحريك التصميم» يمين/يسار يوسّط
               الكلام في الإطار — الاتجاه حسب الجهة اللي واقف فيها العمود.<br>
@@ -1146,7 +1147,8 @@ const state = {
   bgBlur:6, bgDim:38, heroW:560, bgFlip:false, bgZoom:1, bgPanX:50, bgPanY:50,
   heroPose:"held", heroTilt:-7, heroLift:120,
   shelfKind:"shelves", shelfRows:6, shelfPer:6, shelfBlur:3,
-  heroSide:"left", heroScale:1, scene:"s01", heroMode:"auto", heroX:23, dense:"basic"
+  heroSide:"left", heroScale:1, scene:"s01", heroMode:"card", heroX:23, dense:"basic",
+  heroModeV2:true   // الافتراضي صار الكرت؛ حالة قديمة بلا هذا العلم تُنقل مرة وحدة
 };
 
 let photoImg = null;
@@ -3511,7 +3513,10 @@ function drawHeroCard(img){
 let heroCut = null, heroId = "", heroWhole = false, heroFlat = null;
 function ensureHero(){
   const id = state.imgId;
-  if (!id || photoImg) return;
+  if (photoImg) return;
+  // عطر بلا صورة في الكتالوج: لازم تُمسح صورة العطر السابق، وإلا بقي كرته
+  // واقفاً تحت اسم عطر آخر (طلع Beach Hut تحت اسم Terre d'Hermès)
+  if (!id){ heroId = ""; heroCut = null; heroFlat = null; return; }
   if (heroId === id) return;
   heroId = id;
   const row = PERFUMES.find(r => r.i === id);
@@ -4113,6 +4118,11 @@ function restore(){
   }
   if (!SCENE_KINDS.has(state.shelfKind)) state.shelfKind = "shelves";
   if (state.heroMode === "cut") state.heroMode = "auto";   // الخيار حُذف
+  // «أغلب الصور مشوّهة» — القصّ الآلي ما يُضمن على كل صورة. الكرت صار الافتراضي،
+  // وحالته المحفوظة على «تلقائي» من قبل تُنقل إليه مرة وحدة (العلم يمنع
+  // تكرار النقل لو اختار القصّ بعدها عن قصد).
+  if (saved && !saved.heroModeV2 && state.heroMode === "auto") state.heroMode = "card";
+  state.heroModeV2 = true;
   const savedBg = lsGet(LS_BG, null);
   const DEF_F = { bgBlur:8, bgDim:44, bgZoom:1, bgPanX:50, bgPanY:50, bgFlip:false };
   let uploaded = [];

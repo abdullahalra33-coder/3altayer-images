@@ -26,6 +26,7 @@ ok('حقل رفع الصورة شغّال وما فيه صورة بعد',
 await page.fill('#feeling', 'ستيني ثري من عائلة طرطشلي');
 await page.fill('#note', 'رشّة وحدة تكفي ليوم كامل وما تحتاج تعيد');
 await page.selectOption('#layout', 'shelf');
+await page.selectOption('#heroMode', 'auto');   // الافتراضي صار الكرت؛ هذا الفحص يقيس القصّ
 await waitForCabinet(page);
 await waitStable(page);
 await snap(page, 'auto');
@@ -208,6 +209,36 @@ const cutOpt = await page.$$eval('#heroMode option', os => os.map(o => o.value))
 ok('القصّة المأكولة تُرفض وتروح للكرت، وخيار «مقصوصة دائماً» ما عاد موجوداً',
    bh.rough === true && !cutOpt.includes('cut'),
    JSON.stringify(bh.stats) + ' · ' + cutOpt.join(','));
+
+/* ١٥ — الكرت هو الافتراضي، وحالة قديمة على «تلقائي» تُنقل إليه مرة وحدة فقط */
+const migrated = await page.evaluate(async () => {
+  const K = '3altayer.mood2.state.v1';
+  const old = JSON.parse(localStorage.getItem(K) || '{}'); delete old.heroModeV2; old.heroMode = 'auto';
+  localStorage.setItem(K, JSON.stringify(old));
+  return true;
+});
+const reopen = async () => { await page.reload(); await page.waitForTimeout(1500);
+  await page.evaluate(() => document.querySelectorAll('details.card').forEach(d => d.open = true));
+  await page.selectOption('#layout', 'shelf'); await page.waitForTimeout(300); };   // المؤشر مطفأ خارج «المكتبة»
+await reopen();
+const afterMigrate = await page.$eval('#heroMode', e => e.value);
+await page.selectOption('#heroMode', 'auto'); await page.waitForTimeout(700);
+await reopen();
+const afterChoice = await page.$eval('#heroMode', e => e.value);
+
+/* ١٦ — عطر بلا صورة ما يرث كرت العطر اللي قبله */
+await pickPerfume(page, 'beach hut man', /man/i);
+await waitStable(page);
+await pickPerfume(page, 'terre dhermes eau intense', /intense/i);
+await waitStable(page);
+const inherited = await page.evaluate(() => {
+  const d = document.querySelector('#cv').getContext('2d').getImageData(0, 1100, 500, 700).data;
+  let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 225 && d[i+1] > 220 && d[i+2] > 205) n++;
+  return n;   // بياض الكرت في جهة العطر
+});
+ok('عطر بلا صورة ما يرث كرت العطر السابق', inherited < 2000, inherited + ' بكسل بيضاء في جهة العطر');
+ok('الكرت افتراضي، والاختيار الصريح للقصّ يبقى بعد إعادة التحميل',
+   migrated && afterMigrate === 'card' && afterChoice === 'auto', afterMigrate + ' ثم ' + afterChoice);
 
 ok('ما فيه أخطاء جافاسكربت', errors.length === 0, errors.slice(0, 3).join(' | '));
 
